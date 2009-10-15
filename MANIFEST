@@ -1,0 +1,13 @@
+Changes
+lib/DBIx/QueryByName/DbhPool.pm
+lib/DBIx/QueryByName/FromXML.pm
+lib/DBIx/QueryByName/Logger.pm
+lib/DBIx/QueryByName/QueryPool.pm
+lib/DBIx/QueryByName.pm
+Makefile.PL
+MANIFEST
+t/load_from_xml.t
+t/pod-coverage.t
+t/pod.t
+t/query.t
+META.yml                                 Module meta-data (added by MakeMaker)
