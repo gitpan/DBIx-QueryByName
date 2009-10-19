@@ -35,14 +35,10 @@ sub load {
         my $name = $query->attribute('name');
         $log->logcroak("invalid xml: no name attribute in query node (session_name => $session)")
             if (!defined $name);
-        $log->logcroak("invalid name: contain non alfanumeric characters (query_name => $name, session_name => $session)")
-            if ($name !~ /^[a-zA-Z0-9]+$/);
 
         my $params = $query->attribute('params');
         $log->logcroak("invalid xml: no params attribute in query node (query_name => $name, session_name => $session)")
             if (!defined $params);
-        $log->logcroak("invalid params: contain non alfanumeric characters [$params]")
-            if ($params !~ /^[a-zA-Z0-9\,]+$/);
 
         my @params = split(q{,},$params);
 

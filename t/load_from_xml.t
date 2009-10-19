@@ -8,18 +8,17 @@ use lib File::Spec->catdir("..","lib"), File::Spec->catdir($FindBin::Bin,"..","l
 use Test::More;
 use Data::Dumper;
 use File::Temp qw(tempfile);
-use Test::Exception;
 use Fcntl;
 
 BEGIN {
 
     # skip test if missing dependency
-    foreach my $m ('XML::Parser','XML::SimpleObject') {
+    foreach my $m ('XML::Parser','XML::SimpleObject','Test::Exception') {
         eval "use $m";
         plan skip_all => "test require missing module $m" if $@;
     }
 
-    plan tests => 69;
+    plan tests => 68;
 
     use_ok("DBIx::QueryByName");
 }
@@ -79,9 +78,9 @@ throws_ok { $dbh->load(session => 'q', from_xml_file => $tmpq) } qr/invalid xml:
 print_to_file($tmpq,'<queries>blabla<query>aouaoue</query></queries>');
 throws_ok { $dbh->load(session => 'q', from_xml_file => $tmpq) } qr/invalid xml: no name attribute in query node/, "load: croak when no name attribute in <query>";
 
-foreach my $c (split(//,'!?:;/\|{}[]()~^#*-+_%@$,')) {
-    print_to_file($tmpq,'<queries><query name="aoueaou'.$c.'">aouaoue</query></queries>');
-    throws_ok { $dbh->load(session => 'q', from_xml_file => $tmpq) } qr/invalid name: contain non alfanumeric characters/, "load: croak when name contains [$c]";
+foreach my $c (split(//,'!?:;/\|{}[]()~^#*-+%@$,')) {
+    print_to_file($tmpq,'<queries><query name="aoueaou'.$c.'" params="bob">aouaoue</query></queries>');
+    throws_ok { $dbh->load(session => 'q', from_xml_file => $tmpq) } qr/invalid query name: contain non alfanumeric characters/, "load: croak when name contains [$c]";
 }
 
 print_to_file($tmpq,'<queries>blabla<query name="aoueaou">aouaoue</query></queries>');
@@ -92,7 +91,7 @@ throws_ok { $dbh->load(session => 'q', from_xml_file => $tmpq) } qr/invalid xml:
 
 foreach my $c (split(//,'!?:;/\|{}[]()~^#*-+_%@$')) {
     print_to_file($tmpq,'<queries><query name="aoueaou" params="bip'.$c.'cbop">aouaoue</query></queries>');
-    throws_ok { $dbh->load(session => 'q', from_xml_file => $tmpq) } qr/invalid params: contain non alfanumeric characters/, "load: croak when params contains [$c]";
+    throws_ok { $dbh->load(session => 'q', from_xml_file => $tmpq) } qr/invalid query parameter: contain non alfanumeric characters/, "load: croak when params contains [$c]";
 }
 
 print_to_file($tmpq,'<queries>blabla<query name="aoueaou" params="bip,bop">aouaoue</query><query name="aoueaou" params="trip,trop"></query></queries>');
@@ -106,7 +105,7 @@ my $q = <<__END4__;
         <query name="WriteNewTest" params="Username,Password,Host,Value">SELECT Write_New_Tese(?,?,?,?)</query>
 -->
         <query name="GetDailyHourlyActivityDistribution" params="Username,Password,Host,FromDate,ToDate">SELECT Get_Daily_Hourly_Activity_Distribution(?,?,?,?,?)</query>
-        <query name="LookupTransactionSource" params="Username,Password,Host,StatementReference">SELECT * FROM Lookup_Transaction_Source(?,?,?,?)</query>
+        <query name="Lookup_Transaction_Source" params="Username,Password,Host,StatementReference">SELECT * FROM Lookup_Transaction_Source(?,?,?,?)</query>
 </queries>
 __END4__
 

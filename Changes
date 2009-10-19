@@ -1,3 +1,9 @@
+DBIx::QueryByName 0.02
+----------------------
+ - allow underscores in query names
+ - more fork tests
+ - fix dependency error in tests (RT #50605)
+
 DBIx::QueryByName 0.01
 ----------------------
  - first release

@@ -8,18 +8,17 @@ use lib File::Spec->catdir("..","lib"), File::Spec->catdir($FindBin::Bin,"..","l
 use Test::More;
 use Data::Dumper;
 use File::Temp qw(tempfile);
-use Test::Exception;
 use Fcntl;
 
 BEGIN {
 
     # skip test if missing dependency
-    foreach my $m ('XML::Parser','XML::SimpleObject','DBI','DBD::SQLite') {
+    foreach my $m ('XML::Parser','XML::SimpleObject','DBI','DBD::SQLite','Test::Exception') {
         eval "use $m";
         plan skip_all => "test require missing module $m" if $@;
     }
 
-    plan tests => 32;
+    plan tests => 35;
 
     use_ok("DBIx::QueryByName");
 }
@@ -91,6 +90,10 @@ lives_ok { $sth = $dbh->AddJob( { id => 1, username => 'bob', description => 'do
 lives_ok { $dbh->AddJob( { id => 2, username => 'bob', description => 'do that' } ) } "load row via session one";
 lives_ok { $dbh->AddJob( { id => 3, username => 'joe', description => 'do something else' } ) } "load row via session one";
 
+# mess up query arguments
+#throws_ok { $dbh->AddJob( { username => 'joe', description => 'bob' } ) } qr/called with 2 bind variables when 3 are needed/, "missing one query param";
+# ooops. that one caused a segfault :)
+
 # a query that doesn't exist
 throws_ok { $dbh->CallWhatever() } qr/unknown database query name/, "error if unknown method";
 
@@ -110,6 +113,13 @@ throws_ok { $dbh->begin_work() } qr/undefined session argument in begin_work/, "
 lives_ok  { $dbh->begin_work('one') } "begin_work ok";
 lives_ok  { $dbh->AddJob( { id => 4, username => 'billy', description => 'pif' } ) } "load 1 row after begin_work";
 lives_ok  { $dbh->AddJob( { id => 5, username => 'billy', description => 'paf' } ) } "load 1 row after begin_work";
+
+$sth = $dbh->GetAllUserJobs( { username => 'billy' } );
+ok(!defined $sth->fetchrow_array(), "no rows inserted between calls to begin_work and rollback");
+$sth = $dbh->GetAllUserJobs( { username => 'bob' } );
+is_deeply( [ $sth->fetchrow_array() ], [ 1, 'do this', 0 ], "but previous rows are still committed");
+$sth->finish;
+
 throws_ok { $dbh->rollback() } qr/undefined session argument in rollback/, "rollback needs session argument";
 lives_ok  { $dbh->rollback('one') } "rollback ok";
 
@@ -119,11 +129,17 @@ $sth = $dbh->GetAllUserJobs( { username => 'bob' } );
 is_deeply( [ $sth->fetchrow_array() ], [ 1, 'do this', 0 ], "but previous rows are still committed");
 $sth->finish;
 
+
 # TODO: test that begin_work/commit indeed are session based. ex: commit is still on on second dbh
 # test begin_work/commit
 $dbh->begin_work('one');
 lives_ok { $dbh->AddJob( { id => 4, username => 'billy', description => 'pif' } ) } "load 1 row after begin_work";
 lives_ok { $dbh->AddJob( { id => 5, username => 'billy', description => 'paf' } ) } "load 1 row after begin_work";
+
+$sth = $dbh->GetAllUserJobs( { username => 'billy' } );
+ok(!defined $sth->fetchrow_array(), "no rows inserted before commit called");
+$sth->finish;
+
 $dbh->commit('one');
 $sth = $dbh->GetAllUserJobs( { username => 'billy' } );
 is_deeply( [ $sth->fetchrow_array() ], [ 4, 'pif', 0 ], "row 1 was inserted");

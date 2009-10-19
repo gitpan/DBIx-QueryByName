@@ -155,6 +155,8 @@ sub AUTOLOAD {
 	$self->{sth}->{$$}->{$query} = $dbh->prepare($sql)
         unless defined $self->{sth}->{$$}->{$query};
 
+    # NOTE: some params may be left undefined. It is up to the
+    # database to rise an exception or swallow it
 	my @args;
 	foreach my $pname (@params) {
 		push( @args, $params->{$pname} );
@@ -280,6 +282,9 @@ affects the connection associated with the running process (defined by
 its pid C<$$>) and not the connections to the same database openened
 for the process's children or parents.
 
+Notice that fork safety has been tested against Postgres databases
+only. We cannot guarantee that it works with other databases :)
+
 =head1 LOGGING
 
 DBIx::QueryByName logs via Log::Log4perl if it is available. If
@@ -342,11 +347,16 @@ C<$session_name> and return its result.
 =item C<< $dbh->quote($session_name, $string); >>
 
 Call DBI's quote() method on C<$string> for the database handler
-associated with C<$session_name> and return its result.
+associated with C<$session_name> and return its result. WARNING: this
+method might be removed from later versions as it is outside the core
+scope of this module. Use at your own risk.
 
 =item C<< my $sth = $dbh->query($session_name,$sql); >>
 
-Call prepare and execute for this SQL. Return the executed statement handler.
+Call prepare and execute for this SQL. Return the executed statement
+handler. WARNING: this method might be removed from later versions as
+it only provides a backdoor to the querying-by-name mechanism. Use at
+your own risk.
 
 =back
 
@@ -375,8 +385,8 @@ parameters, forks and multiple simultaneous database connections.
 =head1 AUTHORS
 
 Created by Joel Jacobson <joel AT gluefinance.com>.
-Maintained by Erwan Lemonnier <erwan AT cpan.org>.
-With support from Claes Jakobsson <claes AT surfar.nu>
+
+Maintained by Erwan Lemonnier <erwan AT gluefinance.com> with the support of Claes Jakobsson <claes AT gluefinance.com>.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
@@ -390,9 +400,14 @@ This module is provided 'as is' and comes with no warranty. Glue
 Finance AB as well as the author(s) decline any responsibility for the
 consequences of using all or part of this module.
 
+Glue Finance is a payment solution provider based in Stockholm,
+Sweden. Our clients include online and offline companies requiring low
+cost instant payment transfers domestically and internationally. For
+more information, please see our website.
+
 =head1 SVN INFO
 
-$Id: QueryByName.pm 5251 2009-10-15 14:36:18Z erwan $
+$Id: QueryByName.pm 5273 2009-10-19 13:37:16Z erwan $
 
 =cut
 

@@ -2,9 +2,9 @@ package DBIx::QueryByName::DbhPool;
 use utf8;
 use strict;
 use warnings;
+use Data::Dumper;
 use DBI;
 use DBIx::QueryByName::Logger qw(get_logger);
-
 
 sub new {
     return bless( { connections => {}, config => {} }, $_[0] );
@@ -78,12 +78,11 @@ sub disconnect_all {
         foreach my $session ( keys %{$self->{connections}->{$pid}} ) {
             if ( $$ == $pid ) {
                 $self->disconnect($session);
-            } else {
+            } elsif (defined $self->{connections}->{$pid}->{$session}) {
                 # the connection belongs to an other process than self.
                 # Prevent forked child (this pid) from disconnecting the database connection
-                # TODO: do that in connect??
-                $self->{connections}->{$pid}->{$session}->{dbh}->{InactiveDestroy} = 1 if defined $self->{connections}->{$pid}->{$session}->{dbh};
-                undef $self->{connections}->{$pid}->{$session}->{dbh};
+                my $dbh = $self->{connections}->{$pid}->{$session}->{InactiveDestroy} = 1;
+                undef $self->{connections}->{$pid}->{$session};
             }
         }
     }
