@@ -10,7 +10,7 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME            => "DBIx::QueryByName",
     ABSTRACT        => 'Execute SQL queries by name',
-    VERSION         => "0.02",
+    VERSION_FROM    => 'lib/DBIx/QueryByName.pm',
     PREREQ_PM       => {
         'XML::Parser' => 2.34,
         'XML::SimpleObject' => 0.53,

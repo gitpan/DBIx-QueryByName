@@ -1,3 +1,7 @@
+DBIx::QueryByName 0.03
+----------------------
+ - moved version to module file 
+
 DBIx::QueryByName 0.02
 ----------------------
  - allow underscores in query names

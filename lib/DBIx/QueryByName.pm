@@ -13,6 +13,8 @@ use DBIx::QueryByName::FromXML;
 
 use accessors::chained qw(_query_pool _dbh_pool);
 
+our $VERSION = '0.03';
+
 our $AUTOLOAD;
 
 # TODO: add ->dbh($session_name) and remove query, quote, begin_work,
@@ -407,7 +409,7 @@ more information, please see our website.
 
 =head1 SVN INFO
 
-$Id: QueryByName.pm 5273 2009-10-19 13:37:16Z erwan $
+$Id: QueryByName.pm 5275 2009-10-19 13:54:54Z erwan $
 
 =cut
 
