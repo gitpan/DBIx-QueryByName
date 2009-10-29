@@ -18,7 +18,7 @@ BEGIN {
         plan skip_all => "test require missing module $m" if $@;
     }
 
-    plan tests => 35;
+    plan tests => 39;
 
     use_ok("DBIx::QueryByName");
 }
@@ -77,12 +77,17 @@ __ENDQ2__
 lives_ok { $dbh->load(session => 'two', from_xml => $queries) } "load queries for session two (using from_xml)";
 
 # connection settings
-throws_ok { $dbh->AddJob(1,'bob','do this') } qr/don't know how to open connection/, "can't query until connect() called";
+throws_ok { $dbh->AddJob( { id => 1, username => 'bob', description => 'do this' } ) } qr/don't know how to open connection/, "can't query until connect() called";
 $dbh->connect('one',"dbi:SQLite:$tmpdb");
 $dbh->connect('two',"dbi:SQLite:$tmpdb");
 
 # add a few rows
 my $sth;
+throws_ok { $sth = $dbh->AddJob() } qr/parameter .* is missing from argument hash/, "AddJob fails if no params";
+throws_ok { $sth = $dbh->AddJob(id => 1) } qr/AddJob expects a hash ref as parameter/, "AddJob fails if param is scalar";
+throws_ok { $sth = $dbh->AddJob( [id => 1] ) } qr/AddJob expects a hash ref as parameter/, "AddJob fails if param is array ref";
+throws_ok { $sth = $dbh->AddJob( {id => 1}, {id => 2} ) } qr/too many parameters passed to .*::AddJob/, "AddJob fails if too many params";
+
 lives_ok { $sth = $dbh->AddJob( { id => 1, username => 'bob', description => 'do this' } ) } "load row via session one";
 
 # skip this test: it causes a bus error :)

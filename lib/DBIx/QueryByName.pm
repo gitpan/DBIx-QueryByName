@@ -13,7 +13,7 @@ use DBIx::QueryByName::FromXML;
 
 use accessors::chained qw(_query_pool _dbh_pool);
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 our $AUTOLOAD;
 
@@ -139,6 +139,9 @@ sub AUTOLOAD {
 	my $log    = get_logger();
 	my($query) = $AUTOLOAD;
 
+    $log->logcroak("$query expects a hash ref as parameter") if (ref $params ne 'HASH');
+    $log->logcroak("too many parameters passed to $query") if (scalar @_);
+
     my $queries = $self->_query_pool;
     my $dbhs = $self->_dbh_pool;
 
@@ -161,6 +164,7 @@ sub AUTOLOAD {
     # database to rise an exception or swallow it
 	my @args;
 	foreach my $pname (@params) {
+        $log->logcroak("parameter $pname is missing from argument hash") if (!exists $params->{$pname});
 		push( @args, $params->{$pname} );
 	}
 
@@ -409,7 +413,7 @@ more information, please see our website.
 
 =head1 SVN INFO
 
-$Id: QueryByName.pm 5275 2009-10-19 13:54:54Z erwan $
+$Id: QueryByName.pm 5326 2009-10-29 12:27:15Z erwan $
 
 =cut
 

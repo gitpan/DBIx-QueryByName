@@ -1,6 +1,11 @@
+DBIx::QueryByName 0.04
+----------------------
+ - croak when faulty arguments are passed to named query
+ - more tests
+
 DBIx::QueryByName 0.03
 ----------------------
- - moved version to module file 
+ - moved version to module file
 
 DBIx::QueryByName 0.02
 ----------------------
