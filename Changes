@@ -1,3 +1,10 @@
+DBIx::QueryByName 0.05
+----------------------
+ - don't retry when execute fails because the 'server closed the connection unexpectedly',
+   die instead
+ - better pod
+ - Logger supports more Log4perl methods
+
 DBIx::QueryByName 0.04
 ----------------------
  - croak when faulty arguments are passed to named query

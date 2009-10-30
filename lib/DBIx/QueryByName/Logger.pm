@@ -6,6 +6,7 @@ use Carp qw(croak);
 use base qw(Exporter);
 
 our @EXPORT_OK = qw( get_logger );
+our $AUTOLOAD;
 
 my $SELF = bless({},__PACKAGE__);
 
@@ -19,9 +20,18 @@ sub get_logger {
 }
 
 # default logger methods
-sub logcroak {
-    my $msg = shift || '';
-    croak $msg;
+sub logcroak { my $msg = $_[1] || ''; croak "$msg\n" }
+sub error    { my $msg = $_[1] || ''; print STDERR "ERROR: $msg\n" }
+sub warn     { my $msg = $_[1] || ''; print STDERR "WARN: $msg\n" }
+sub info     { my $msg = $_[1] || ''; print STDERR "INFO: $msg\n" }
+sub log      { my $msg = $_[1] || ''; print STDERR "$msg\n" }
+
+# and all the others
+sub AUTOLOAD {
+    my $msg = $_[1] || '';
+    my $method = $AUTOLOAD;
+    return if ($method =~ /::DESTROY$/);
+    print STDERR "unhandled call to [$method]: $msg\n";
 }
 
 1;
@@ -49,9 +59,15 @@ If Log::Log4perl is available, return its logger. Otherwise return an
 instance of self that offers a default implementation of the following
 Log4perl methods:
 
-=item C<< $log->logcroak($msg); >>
+=item C<< $log->logcroak($msg); >> Log C<$msg> and croak.
 
-Log C<$msg> and croak.
+=item C<< $log->error($msg); >> Log C<$msg> as an error.
+
+=item C<< $log->warn($msg); >> Log C<$msg> as a warning.
+
+=item C<< $log->info($msg); >> Log C<$msg>.
+
+=item C<< $log->log($msg); >> Log C<$msg>.
 
 =back
 

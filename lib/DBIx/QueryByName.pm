@@ -13,7 +13,7 @@ use DBIx::QueryByName::FromXML;
 
 use accessors::chained qw(_query_pool _dbh_pool);
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 our $AUTOLOAD;
 
@@ -159,6 +159,7 @@ sub AUTOLOAD {
     # TODO: refactor
 	$self->{sth}->{$$}->{$query} = $dbh->prepare($sql)
         unless defined $self->{sth}->{$$}->{$query};
+    # TODO: what if prepare fails?
 
     # NOTE: some params may be left undefined. It is up to the
     # database to rise an exception or swallow it
@@ -171,16 +172,16 @@ sub AUTOLOAD {
 	my $rv;
 	my $error_reported = 0;
 	while (1) {
-		$rv = $self->{sth}->{$$}->{$query}->execute(@args);
+        $rv = $self->{sth}->{$$}->{$query}->execute(@args);
 
 		if (!defined $rv) {
-			my $err = $self->{sth}->{$$}->{$query}->err;
-			my $errstr = $self->{sth}->{$$}->{$query}->errstr;
+			my $err = $self->{sth}->{$$}->{$query}->err || 99999999999999;
+			my $errstr = $self->{sth}->{$$}->{$query}->errstr || '';
 
             # if connection error while executing, retry
-			if ( $err == 7 && $errstr =~ m/could not connect to server|no connection to the server|server closed the connection unexpectedly/ ) {
+			if ( $err == 7 && $errstr =~ m/could not connect to server|no connection to the server|terminating connection due to administrator command/ ) {
 
-				$log->error("Query $query failed, will try again, Error code: $err, Error message: $errstr" )
+				$log->error("Query $query failed, will try again, Error code [$err], Error message [$errstr]" )
                     if ($error_reported == 0);
 
                 # try to reconnect to database
@@ -193,7 +194,7 @@ sub AUTOLOAD {
 					$self->{sth}->{$$}->{$query} = $dbh->prepare($sql);
 				}
 			} else {
-				$log->logcroak("Query $query failed, won't try again, Error code $err, Error message $errstr" );
+				$log->logcroak("Query $query failed, won't try again, Error code [$err], Error message [$errstr]" );
 				return undef; # Will never reach this line, logcroak will die, but just in case
 			}
 
@@ -290,6 +291,17 @@ for the process's children or parents.
 
 Notice that fork safety has been tested against Postgres databases
 only. We cannot guarantee that it works with other databases :)
+
+=head1 AUTOMATED RECOVERY
+
+If a database connection gets interupted or closed, and the reason for
+the interuption is that the database server is closing down or is not
+reachable, DBIx::QueryByName will transparently try to reconnect to
+the database until it succeeds and re-execute the query.
+
+Any other connection or execution failure will still result in a
+die/croak that you will have to catch and handle from within your
+application.
 
 =head1 LOGGING
 
@@ -413,7 +425,7 @@ more information, please see our website.
 
 =head1 SVN INFO
 
-$Id: QueryByName.pm 5326 2009-10-29 12:27:15Z erwan $
+$Id: QueryByName.pm 5341 2009-10-30 10:48:19Z erwan $
 
 =cut
 
