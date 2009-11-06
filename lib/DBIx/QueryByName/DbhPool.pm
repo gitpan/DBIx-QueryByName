@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Data::Dumper;
 use DBI;
-use DBIx::QueryByName::Logger qw(get_logger);
+use DBIx::QueryByName::Logger qw(get_logger debug);
 
 sub new {
     return bless( { connections => {}, config => {} }, $_[0] );
@@ -41,6 +41,7 @@ sub connect {
         $log->logcroak("don't know how to open connection [$session]")
             if (!$self->knows_session($session));
 
+        debug "Trying to connect to database for session $session";
         my $dbh = DBI->connect( @{$self->{config}->{$session}} );
 
         if (!defined $dbh) {
@@ -52,7 +53,11 @@ sub connect {
         }
 
         $self->{connections}->{$$}->{$session} = $dbh;
-        $log->info( "Database is back online [$session]") if ($error_reported == 1);
+        if ($error_reported == 1) {
+            $log->info( "Database is back online [$session]");
+        } else {
+            debug "Connected to database";
+        }
         return $dbh;
     }
 }
@@ -63,6 +68,7 @@ sub disconnect {
     $log->logcroak("undefined session name")   if (!defined $session);
     $log->logcroak("not a known session name") if (!$self->knows_session($session));
 
+    debug "Disconnecting session $session for pid $$";
     if (defined $self->{connections}->{$$}->{$session}) {
         $self->{connections}->{$$}->{$session}->disconnect();
         undef $self->{connections}->{$$}->{$session};
@@ -81,6 +87,7 @@ sub disconnect_all {
             } elsif (defined $self->{connections}->{$pid}->{$session}) {
                 # the connection belongs to an other process than self.
                 # Prevent forked child (this pid) from disconnecting the database connection
+                debug "Setting connection for pid $$ and session $session as InactiveDestroy";
                 my $dbh = $self->{connections}->{$pid}->{$session}->{InactiveDestroy} = 1;
                 undef $self->{connections}->{$pid}->{$session};
             }

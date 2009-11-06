@@ -1,3 +1,8 @@
+DBIx::QueryByName 0.06
+----------------------
+ - added debug possibilities
+ - better pod
+
 DBIx::QueryByName 0.05
 ----------------------
  - don't retry when execute fails because the 'server closed the connection unexpectedly',

@@ -5,7 +5,7 @@ use warnings;
 use Carp qw(croak);
 use base qw(Exporter);
 
-our @EXPORT_OK = qw( get_logger );
+our @EXPORT_OK = qw( get_logger debug );
 our $AUTOLOAD;
 
 my $SELF = bless({},__PACKAGE__);
@@ -34,6 +34,16 @@ sub AUTOLOAD {
     print STDERR "unhandled call to [$method]: $msg\n";
 }
 
+# just print a debug message if need be
+my $SHOWDEBUG=0;
+$SHOWDEBUG=1 if (exists $ENV{DBIXQUERYBYNAMEDEBUG} && "$ENV{DBIXQUERYBYNAMEDEBUG}" == "1");
+
+sub debug {
+    return if !$SHOWDEBUG;
+    my $msg = shift || '';
+    print STDERR "DEBUG (pid:$$): $msg\n";
+}
+
 1;
 
 __END__
@@ -52,6 +62,11 @@ DBIx::QueryByName::Logger - Take care of all logging
 =head1 INTERFACE
 
 =over 4
+
+=item C<< debug $msg; >>
+
+Print a debug message to STDERR if the environment variable
+DBIXQUERYBYNAMEDEBUG is set to 1.
 
 =item C<< $log = get_logger(); >>
 

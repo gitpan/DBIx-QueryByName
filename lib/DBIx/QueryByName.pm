@@ -6,14 +6,14 @@ use DBI;
 use XML::Parser;
 use XML::SimpleObject;
 use Data::Dumper;
-use DBIx::QueryByName::Logger qw(get_logger);
+use DBIx::QueryByName::Logger qw(get_logger debug);
 use DBIx::QueryByName::QueryPool;
 use DBIx::QueryByName::DbhPool;
 use DBIx::QueryByName::FromXML;
 
 use accessors::chained qw(_query_pool _dbh_pool);
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 our $AUTOLOAD;
 
@@ -124,6 +124,7 @@ sub load {
 # TODO: implement the prepare/execute/retry logic of sths in QueryPool?
 sub _finish_all_sths {
     my $self = shift;
+    debug "Closing all sths for pid $$";
     foreach my $query ( keys %{$self->{sth}->{$$}} ) {
         if (defined $self->{sth}->{$$}->{$query}) {
             $self->{sth}->{$$}->{$query}->finish;
@@ -157,9 +158,11 @@ sub AUTOLOAD {
     my $dbh = $dbhs->connect($session);
 
     # TODO: refactor
-	$self->{sth}->{$$}->{$query} = $dbh->prepare($sql)
-        unless defined $self->{sth}->{$$}->{$query};
-    # TODO: what if prepare fails?
+    if (!defined $self->{sth}->{$$}->{$query}) {
+        debug "Preparing query $query";
+        $self->{sth}->{$$}->{$query} = $dbh->prepare($sql);
+    }
+    # TODO: what if prepare fails? retry?
 
     # NOTE: some params may be left undefined. It is up to the
     # database to rise an exception or swallow it
@@ -172,11 +175,14 @@ sub AUTOLOAD {
 	my $rv;
 	my $error_reported = 0;
 	while (1) {
+        debug "Executing query $query";
         $rv = $self->{sth}->{$$}->{$query}->execute(@args);
 
 		if (!defined $rv) {
 			my $err = $self->{sth}->{$$}->{$query}->err || 99999999999999;
 			my $errstr = $self->{sth}->{$$}->{$query}->errstr || '';
+
+            debug "An error occured while executing query [$err] [$errstr]";
 
             # if connection error while executing, retry
 			if ( $err == 7 && $errstr =~ m/could not connect to server|no connection to the server|terminating connection due to administrator command/ ) {
@@ -186,13 +192,17 @@ sub AUTOLOAD {
 
                 # try to reconnect to database
 				unless ($dbh->ping()) {
+                    debug "Can ping database. Trying to disconnect, re-connect and re-prepare";
                     $dbhs->disconnect($session);
                     $self->_finish_all_sths();  # TODO: do we really want to finish ALL queries or only those in this session?
                     # TODO: shouldn't we finish first, disconnect then?
 
 					$dbh = $dbhs->connect($session);
 					$self->{sth}->{$$}->{$query} = $dbh->prepare($sql);
-				}
+				} else {
+                    debug "Cannot ping database. Waiting 1sec and retrying to execute.";
+                }
+
 			} else {
 				$log->logcroak("Query $query failed, won't try again, Error code [$err], Error message [$errstr]" );
 				return undef; # Will never reach this line, logcroak will die, but just in case
@@ -214,6 +224,7 @@ sub AUTOLOAD {
 # Finish statement handlers and close database connections
 sub DESTROY {
     my $self = shift;
+    debug "DESTROY called -> finishing all sths and disconnecting all dbhs";
     # TODO: do we really want to finish ALL queries or only those in this session?
     $self->_finish_all_sths();
     $self->_dbh_pool()->disconnect_all();
@@ -297,7 +308,10 @@ only. We cannot guarantee that it works with other databases :)
 If a database connection gets interupted or closed, and the reason for
 the interuption is that the database server is closing down or is not
 reachable, DBIx::QueryByName will transparently try to reconnect to
-the database until it succeeds and re-execute the query.
+the database until it succeeds and re-execute the query. Note that
+this only works when you call a query by its name. Calls to C<query>,
+C<begin_work>, C<commit>, C<rollback> are only aliases to the
+corresponding DBI calls and will fail in the same way.
 
 Any other connection or execution failure will still result in a
 die/croak that you will have to catch and handle from within your
@@ -347,6 +361,23 @@ NOT IMPLEMENTED YET! Autoload named queries to call all stored
 procedures declared in a postgres database to whom we can connect
 using C<$session_name>.
 
+=item C<< $dbh->$your_query_name( {param1 => value1, param2 => value2...} ) >>
+
+Once you have specified how to connect to the database with
+C<connect()> and loaded some named queries with C<load()>, you can
+execute any of the sql queries by its name as a method of C<$dbh>. The
+query expects its parameters as a reference to a hash whose keys are
+the parameters names and whose values are the parameters values.
+
+Examples:
+
+    $dbh->increase_counter( { id => $id } );
+
+    $dbh->add_book( { author => 'me',
+                      title => 'my life',
+                      isbn => $blabla,
+                    } );
+
 =item C<< $dbh->rollback($session_name); >>
 
 Perform a rollback on the session named C<$session_name> and return
@@ -395,6 +426,11 @@ string expected must have the following format:
 
 Always use placeholders ('?' signs) in your SQL!
 
+=head1 DEBUGGING
+
+To see all the gutwork happening on stderr, set the environment
+variable DBIXQUERYBYNAMEDEBUG to 1.
+
 =head1 SEE ALSO
 
 DBIx::NamedQuery: almost the same but doesn't support named
@@ -425,7 +461,7 @@ more information, please see our website.
 
 =head1 SVN INFO
 
-$Id: QueryByName.pm 5341 2009-10-30 10:48:19Z erwan $
+$Id: QueryByName.pm 5424 2009-11-06 09:35:52Z erwan $
 
 =cut
 
