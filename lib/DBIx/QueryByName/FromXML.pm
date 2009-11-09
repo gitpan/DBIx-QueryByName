@@ -40,7 +40,8 @@ sub load {
         $log->logcroak("invalid xml: no params attribute in query node (query_name => $name, session_name => $session)")
             if (!defined $params);
 
-        my @params = split(q{,},$params);
+        my @params = map { $_ =~ s/^\s*//; $_ =~ s/\s*$//; $_ } split(q{,}, $params);
+#        my @params = split(q{,}, $params);
 
         if ( $qpool->knows_query($name) ) {
             # query is already imported, possibly from other XML file

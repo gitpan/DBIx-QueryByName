@@ -18,7 +18,7 @@ BEGIN {
         plan skip_all => "test require missing module $m" if $@;
     }
 
-    plan tests => 68;
+    plan tests => 70;
 
     use_ok("DBIx::QueryByName");
 }
@@ -52,7 +52,7 @@ throws_ok { $dbh->load(session => 'name', no_known_tag => 'file') } qr/unknown o
 throws_ok { $dbh->load(session => 'name', no_known_tag => 'file', from_xml_file => $tmpq) } qr/unexpected arguments/, "load: error on unexpected arguments";
 
 throws_ok { $dbh->load(session => 'name', from_xml_file => 'file') } qr/no such file: \[file\]/, "load: error on non existing xml file";
-throws_ok { $dbh->load(session => 'name', from_xml_file => undef) } qr/undefined xml file at/, "load: error on undefined from_xml_file";
+throws_ok { $dbh->load(session => 'name', from_xml_file => undef) } qr/undefined xml file/, "load: error on undefined from_xml_file";
 
 #
 # now load some invalid query files
@@ -111,6 +111,19 @@ __END4__
 
 print_to_file($tmpq,$q);
 lives_ok { $dbh->load(session => 'q', from_xml_file => $tmpq) } "no problem on well formatted queries";
+
+$q = <<__END5__;
+<queries>
+        <query name="ParamsWithSpaces" params=" Username , Password , Host   , Value">SELECT Write_New_Tese(?,?,?,?)</query>
+</queries>
+__END5__
+
+print_to_file($tmpq,$q);
+lives_ok { $dbh->load(session => 'r', from_xml_file => $tmpq) } "spaces are accepted in param list";
+
+# will break if QueryPool gets refactored...
+my $params = $dbh->_query_pool->{ParamsWithSpaces}->{params};
+is_deeply($params, ['Username','Password','Host','Value'], "params were parsed correctly");
 
 
 

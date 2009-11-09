@@ -10,7 +10,7 @@ sub new {
 
 sub add_query {
     my ($self, %args) = @_;
-	my $log     = get_logger();
+    my $log     = get_logger();
     my $name    = $args{name}    || $log->logcroak("BUG: undefined query name");
     my $sql     = $args{sql}     || $log->logcroak("BUG: undefined query sql");
     my $session = $args{session} || $log->logcroak("BUG: undefined query session");

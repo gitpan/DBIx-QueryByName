@@ -1,5 +1,10 @@
 DBIx::QueryByName 0.06
 ----------------------
+ - fixed test error
+ - support spaces in xml params value
+
+DBIx::QueryByName 0.06
+----------------------
  - added debug possibilities
  - better pod
 
