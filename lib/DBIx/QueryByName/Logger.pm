@@ -41,7 +41,9 @@ $SHOWDEBUG=1 if (exists $ENV{DBIXQUERYBYNAMEDEBUG} && "$ENV{DBIXQUERYBYNAMEDEBUG
 sub debug {
     return if !$SHOWDEBUG;
     my $msg = shift || '';
-    print STDERR "DEBUG (pid:$$): $msg\n";
+    my ($sec,$min,$hour,$mday,$mon,$year,$wday,
+        $yday,$isdst)=localtime(time);
+    print STDERR "DEBUG (pid:$$ at ".sprintf("%02d:%02d:%02d",$hour,$min,$sec)."): $msg\n";
 }
 
 1;

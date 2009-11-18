@@ -18,7 +18,7 @@ BEGIN {
         plan skip_all => "test require missing module $m" if $@;
     }
 
-    plan tests => 39;
+    plan tests => 51;
 
     use_ok("DBIx::QueryByName");
 }
@@ -84,9 +84,10 @@ $dbh->connect('two',"dbi:SQLite:$tmpdb");
 # add a few rows
 my $sth;
 throws_ok { $sth = $dbh->AddJob() } qr/parameter .* is missing from argument hash/, "AddJob fails if no params";
-throws_ok { $sth = $dbh->AddJob(id => 1) } qr/AddJob expects a hash ref as parameter/, "AddJob fails if param is scalar";
-throws_ok { $sth = $dbh->AddJob( [id => 1] ) } qr/AddJob expects a hash ref as parameter/, "AddJob fails if param is array ref";
-throws_ok { $sth = $dbh->AddJob( {id => 1}, {id => 2} ) } qr/too many parameters passed to .*::AddJob/, "AddJob fails if too many params";
+throws_ok { $sth = $dbh->AddJob(id => 1) } qr/AddJob expects a list of hash refs as parameters/, "AddJob fails if param is scalar";
+throws_ok { $sth = $dbh->AddJob( [id => 1] ) } qr/AddJob expects a list of hash refs as parameters/, "AddJob fails if param is array ref";
+throws_ok { $sth = $dbh->AddJob( {id => 1} ) } qr/parameter username is missing/, "AddJob fails if only one param but missing value";
+throws_ok { $sth = $dbh->AddJob( {id => 1}, {id => 2} ) } qr/parameter username is missing/, "AddJob fails if multiple params but missing value";
 
 lives_ok { $sth = $dbh->AddJob( { id => 1, username => 'bob', description => 'do this' } ) } "load row via session one";
 
@@ -134,7 +135,6 @@ $sth = $dbh->GetAllUserJobs( { username => 'bob' } );
 is_deeply( [ $sth->fetchrow_array() ], [ 1, 'do this', 0 ], "but previous rows are still committed");
 $sth->finish;
 
-
 # TODO: test that begin_work/commit indeed are session based. ex: commit is still on on second dbh
 # test begin_work/commit
 $dbh->begin_work('one');
@@ -158,6 +158,27 @@ throws_ok { $sth = $dbh->query('one') } qr/undefined sql string argument/, "quer
 lives_ok  { $sth = $dbh->query('two',"SELECT COUNT(*) FROM jobs") } "calling query()";
 is_deeply( [ $sth->fetchrow_array() ], [ 5 ], "got correct row count");
 $sth->finish;
+
+# test bulk insertion
+my @rows = (
+    { id => 6, username => '6', description => 'blabla' },
+    { id => 7, username => '7', description => 'blabla' },
+    { id => 8, username => '8', description => 'blabla' },
+    { id => 9, username => '9', description => 'blabla' },
+    );
+
+lives_ok { $dbh->AddJob(@rows) } "insert 4 rows at once";
+
+lives_ok  { $sth = $dbh->query('two',"SELECT COUNT(*) FROM jobs") } "calling query()";
+is_deeply( [ $sth->fetchrow_array() ], [ 9 ], "got correct row count");
+$sth->finish;
+
+# now let's see that the inserted data was correct
+foreach my $row (@rows) {
+    my $id = $row->{id};
+    lives_ok  { $sth = $dbh->query('one',"SELECT id, username, description, status FROM jobs WHERE id=$id") } "getting row with id $id";
+    is_deeply( [ $sth->fetchrow_array() ], [ $id, $row->{username}, $row->{description}, 0 ], "got correct row count");
+}
 
 # TODO: simulate db crash
 

@@ -10,6 +10,11 @@ sub new {
     return bless( { connections => {}, config => {} }, $_[0] );
 }
 
+sub parent {
+    my ($self, $parent) = @_;
+    $self->{sthpool} = $parent->_sth_pool;
+}
+
 sub add_credentials {
     my ($self, $session, @params) = @_;
 	my $log = get_logger();
@@ -36,6 +41,27 @@ sub connect {
 
     return $self->{connections}->{$$}->{$session} if (defined $self->{connections}->{$$}->{$session});
 
+    # Before opening connection, we need to set InactiveDestroy on
+    # other processes connections. Even then, there is a risk that a
+    # process that just forks but open no own connections will close
+    # all the connections of related processes upon exit.
+    foreach my $pid ( keys %{$self->{connections}} ) {
+        foreach my $session ( keys %{$self->{connections}->{$pid}} ) {
+            if ( $$ != $pid ) {
+                if ( defined $self->{connections}->{$pid}->{$session}->{InactiveDestroy} &&
+                     $self->{connections}->{$pid}->{$session}->{InactiveDestroy} != 1 ) {
+                    # the connection belongs to an other process than self.
+                    # Prevent forked child (this pid) from disconnecting the database connection
+                    debug "Setting connection for pid $$ and session $session as InactiveDestroy";
+                    $self->{connections}->{$pid}->{$session}->{InactiveDestroy} = 1;
+                    undef $self->{connections}->{$pid}->{$session};
+                }
+            }
+        }
+    }
+
+    # try to open database connection
+    # TODO: implement a giveup limit?
     my $error_reported = 0;
     while (1) {
         $log->logcroak("don't know how to open connection [$session]")
@@ -68,8 +94,8 @@ sub disconnect {
     $log->logcroak("undefined session name")   if (!defined $session);
     $log->logcroak("not a known session name") if (!$self->knows_session($session));
 
-    debug "Disconnecting session $session for pid $$";
     if (defined $self->{connections}->{$$}->{$session}) {
+        debug "Disconnecting session $session for pid $$";
         $self->{connections}->{$$}->{$session}->disconnect();
         undef $self->{connections}->{$$}->{$session};
     }
@@ -78,21 +104,18 @@ sub disconnect {
 
 sub disconnect_all {
     my $self = shift;
-    my $log = get_logger();
-
-    foreach my $pid ( keys %{$self->{connections}} ) {
-        foreach my $session ( keys %{$self->{connections}->{$pid}} ) {
-            if ( $$ == $pid ) {
-                $self->disconnect($session);
-            } elsif (defined $self->{connections}->{$pid}->{$session}) {
-                # the connection belongs to an other process than self.
-                # Prevent forked child (this pid) from disconnecting the database connection
-                debug "Setting connection for pid $$ and session $session as InactiveDestroy";
-                my $dbh = $self->{connections}->{$pid}->{$session}->{InactiveDestroy} = 1;
-                undef $self->{connections}->{$pid}->{$session};
-            }
-        }
+    debug "Disconnecting all dbhs for process $$";
+    foreach my $session ( keys %{$self->{connections}->{$$}} ) {
+            $self->disconnect($session);
     }
+}
+
+sub DESTROY {
+    my $self = shift;
+    debug "DESTROY DbhPool -> calling finish_all_sths and disconnect_all";
+    # either this DESTROY is called first, or SthPool's DESTROY is
+    $self->{sthpool}->finish_all_sths() if (defined $self->{sthpool});
+    $self->disconnect_all();
 }
 
 1;
@@ -121,6 +144,11 @@ This API is subject to change!
 =item C<< my $pool = DBIx::QueryByName::DbhPool->new(); >>
 
 Instanciate DBIx::QueryByName::DbhPool.
+
+=item C<< $pool->parent($dbixquerybyname) >>
+
+Called after new() to tell the dbh pool of which instance of
+DBIx::QueryByName it is related to.
 
 =item C<< $pool->add_credentials($session, @params); >>
 

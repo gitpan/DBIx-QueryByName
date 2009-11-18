@@ -9,11 +9,12 @@ use Data::Dumper;
 use DBIx::QueryByName::Logger qw(get_logger debug);
 use DBIx::QueryByName::QueryPool;
 use DBIx::QueryByName::DbhPool;
+use DBIx::QueryByName::SthPool;
 use DBIx::QueryByName::FromXML;
 
-use accessors::chained qw(_query_pool _dbh_pool);
+use accessors::chained qw(_query_pool _dbh_pool _sth_pool);
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 our $AUTOLOAD;
 
@@ -23,8 +24,16 @@ our $AUTOLOAD;
 # Return an instance of self
 sub new {
     my $self = bless( {}, $_[0] );
-    $self->_dbh_pool( new DBIx::QueryByName::DbhPool() );
-    $self->_query_pool( new DBIx::QueryByName::QueryPool() );
+
+    $self->_dbh_pool(   new DBIx::QueryByName::DbhPool($self) );
+    $self->_sth_pool(   new DBIx::QueryByName::SthPool($self) );
+    $self->_query_pool( new DBIx::QueryByName::QueryPool()    );
+
+    # Unfortunately, we are forced to have circular references, in
+    # order to get DESTROY to work in the proper order.
+    $self->_sth_pool->parent($self);
+    $self->_dbh_pool->parent($self);
+
     return $self;
 }
 
@@ -121,113 +130,60 @@ sub load {
     return $self;
 }
 
-# TODO: implement the prepare/execute/retry logic of sths in QueryPool?
-sub _finish_all_sths {
-    my $self = shift;
-    debug "Closing all sths for pid $$";
-    foreach my $query ( keys %{$self->{sth}->{$$}} ) {
-        if (defined $self->{sth}->{$$}->{$query}) {
-            $self->{sth}->{$$}->{$query}->finish;
-        }
-    }
-    undef($self->{sth}->{$$});
-}
-
 # Intercept method calls and execute the corresponding loaded query
+# TODO: let autoload handle commit/begin_work/rollback/quote?
 sub AUTOLOAD {
-	my $self   = shift;
-	my $params = shift || {};
-	my $log    = get_logger();
-	my($query) = $AUTOLOAD;
+    my $self   = shift;
+    my @values = @_;
+    my $log    = get_logger();
+    my $sths   = $self->_sth_pool;
+    my($query) = $AUTOLOAD;
 
-    $log->logcroak("$query expects a hash ref as parameter") if (ref $params ne 'HASH');
-    $log->logcroak("too many parameters passed to $query") if (scalar @_);
+    # Do we know this query name?
+    $query =~ s!^.*::([^:]+)$!$1!;
+    $log->logcroak("unknown database query name ($query)")
+        if (!$self->_query_pool->knows_query($query));
 
-    my $queries = $self->_query_pool;
-    my $dbhs = $self->_dbh_pool;
+    # Transform parameters from a list of hashes into an array (if execute)
+    # or an array of arrays (if execute_array)
 
-    # TODO: support bulk insert (multiple param hashes)?
-    # TODO: let autoload handle commit/begin_work/rollback/quote?
+    my (undef,undef,@paramnames) = $self->_query_pool->get_query($query);
 
-	$query =~ s!^.*::([^:]+)$!$1!;
+    # If no bulk execution (the usual case), format parameters for execute()
+    if (scalar @values <= 1) {
 
-    $log->logcroak("unknown database query name ($query)") if (!$queries->knows_query($query));
+        debug "Preparing arguments for execute()";
+        my $v = shift @values || {};
 
-    my ($session,$sql,@params) = $queries->get_query($query);
+        $log->logcroak("$query expects a list of hash refs as parameters")
+            if (ref $v ne 'HASH');
 
-    my $dbh = $dbhs->connect($session);
+        my @args;
+        foreach my $pname (@paramnames) {
+            $log->logcroak("parameter $pname is missing from argument hash:\n".Dumper($v))
+                if (!exists $v->{$pname});
+            push @args, $v->{$pname};
+        }
 
-    # TODO: refactor
-    if (!defined $self->{sth}->{$$}->{$query}) {
-        debug "Preparing query $query";
-        $self->{sth}->{$$}->{$query} = $dbh->prepare($sql);
+        return $sths->prepare_and_execute($query,@args);
     }
-    # TODO: what if prepare fails? retry?
 
-    # NOTE: some params may be left undefined. It is up to the
-    # database to rise an exception or swallow it
-	my @args;
-	foreach my $pname (@params) {
-        $log->logcroak("parameter $pname is missing from argument hash") if (!exists $params->{$pname});
-		push( @args, $params->{$pname} );
-	}
+    # Else: bulk insertion. Process many hash of values at once with execute_array()
+    my @args;
+    debug "Preparing arguments for execute_array()";
+    foreach my $pname (@paramnames) {
+        my @col;
+        foreach my $v (@values) {
+            $log->logcroak("$query expects a list of hash refs as parameters")
+                if (ref $v ne 'HASH');
+            $log->logcroak("parameter $pname is missing from one of argument hashes:\n".Dumper($v))
+                if (!exists $v->{$pname});
+            push @col, $v->{$pname};
+        }
+        push @args, \@col;
+    }
 
-	my $rv;
-	my $error_reported = 0;
-	while (1) {
-        debug "Executing query $query";
-        $rv = $self->{sth}->{$$}->{$query}->execute(@args);
-
-		if (!defined $rv) {
-			my $err = $self->{sth}->{$$}->{$query}->err || 99999999999999;
-			my $errstr = $self->{sth}->{$$}->{$query}->errstr || '';
-
-            debug "An error occured while executing query [$err] [$errstr]";
-
-            # if connection error while executing, retry
-			if ( $err == 7 && $errstr =~ m/could not connect to server|no connection to the server|terminating connection due to administrator command/ ) {
-
-				$log->error("Query $query failed, will try again, Error code [$err], Error message [$errstr]" )
-                    if ($error_reported == 0);
-
-                # try to reconnect to database
-				unless ($dbh->ping()) {
-                    debug "Can ping database. Trying to disconnect, re-connect and re-prepare";
-                    $dbhs->disconnect($session);
-                    $self->_finish_all_sths();  # TODO: do we really want to finish ALL queries or only those in this session?
-                    # TODO: shouldn't we finish first, disconnect then?
-
-					$dbh = $dbhs->connect($session);
-					$self->{sth}->{$$}->{$query} = $dbh->prepare($sql);
-				} else {
-                    debug "Cannot ping database. Waiting 1sec and retrying to execute.";
-                }
-
-			} else {
-				$log->logcroak("Query $query failed, won't try again, Error code [$err], Error message [$errstr]" );
-				return undef; # Will never reach this line, logcroak will die, but just in case
-			}
-
-			$error_reported = 1;
-			sleep(1);
-			next;
-		}
-
-		if ($error_reported == 1) {
-			$log->info("Successfully retried executing query $query");
-		}
-		last;
-	}
-	return $self->{sth}->{$$}->{$query};
-}
-
-# Finish statement handlers and close database connections
-sub DESTROY {
-    my $self = shift;
-    debug "DESTROY called -> finishing all sths and disconnecting all dbhs";
-    # TODO: do we really want to finish ALL queries or only those in this session?
-    $self->_finish_all_sths();
-    $self->_dbh_pool()->disconnect_all();
+    return $sths->prepare_and_execute($query,@args);
 }
 
 1;
@@ -247,6 +203,11 @@ The idea is to write the code of your SQL queries somewhere else than
 in your perl code (in a XML file for example) and let
 DBIx::QueryByName load those SQL declarations and generate methods to
 execute each query as a usual object method call.
+
+This module also implements automatic database session recovery and
+query retry, when it is deemed safe to do so. It was specifically
+designed to be used as a high availability interface against a cluster
+of replicated postgres databases running behind one service IP.
 
 DBIx::QueryByName can manage multiple database connections and is fork
 safe.
@@ -317,6 +278,14 @@ Any other connection or execution failure will still result in a
 die/croak that you will have to catch and handle from within your
 application.
 
+=head1 SUPPORTED DATABASES
+
+DBIx::QueryByName has been tested thoroughly against postgres. We
+cannot guarrantee that it will work with other databases (but it
+should :). A database is supported if it provides standard error
+messages (see QueryByName.pm::AUTOLOAD) and support the DBI parameter
+InactiveDestroy.
+
 =head1 LOGGING
 
 DBIx::QueryByName logs via Log::Log4perl if it is available. If
@@ -361,22 +330,60 @@ NOT IMPLEMENTED YET! Autoload named queries to call all stored
 procedures declared in a postgres database to whom we can connect
 using C<$session_name>.
 
+=item C<< $dbh->$your_query_name( ) >>
+
+or
+
 =item C<< $dbh->$your_query_name( {param1 => value1, param2 => value2...} ) >>
+
+or
+
+=item C<< $dbh->$your_query_name( \%values1, \%values2, \%values3... ) >>
 
 Once you have specified how to connect to the database with
 C<connect()> and loaded some named queries with C<load()>, you can
-execute any of the sql queries by its name as a method of C<$dbh>. The
-query expects its parameters as a reference to a hash whose keys are
-the parameters names and whose values are the parameters values.
+execute any of the sql queries by its name as a method of C<$dbh>.
 
-Examples:
 
-    $dbh->increase_counter( { id => $id } );
+Both single execution and bulk execution are supported. 
+
+
+If the query has no sql parameters, just call the query's method without
+parameters. Example:
+
+    $dbh->increase_counter( );
+
+If the query accept a values to bind to sql parameters, pass those
+values as an anonymous hash in which keys are the names of sql
+parameters and values are their values. Example:
 
     $dbh->add_book( { author => 'me',
                       title => 'my life',
                       isbn => $blabla,
                     } );
+
+If the query allows it, you may perform bulk execution and
+execute multiple parameter hashes at once. This is done by
+calling DBI's execute_array method. Example:
+
+    # insert 2 books at once (or more)
+    $dbh->add_book( { author => 'me',
+                      title => 'my life',
+                      isbn => $blabla,
+                    },
+                    { author => 'you',
+                      title => 'your life',
+                      isbn => $moreblabla,
+                    },
+                  );
+
+=back
+
+The following methods are just aliases for the corresponding DBI
+methods. Do not use them if you don't really have to as some might be
+removed in a later version of this module.
+
+=over 4
 
 =item C<< $dbh->rollback($session_name); >>
 
@@ -431,6 +438,29 @@ Always use placeholders ('?' signs) in your SQL!
 To see all the gutwork happening on stderr, set the environment
 variable DBIXQUERYBYNAMEDEBUG to 1.
 
+=head1 KNOWN ISSUES
+
+=head2 Forked processes not calling queries
+
+If a process opens one or more database connections and forks, but
+it's child opens no database connection of its own, the connections of
+the parent will be closed without respect to InactiveDestroy when the
+child exits. To avoid troubles, always commit data explicitely.
+
+=head2 Execute does not timeout
+
+In some cases, a call to DBI's execute method (or ping) may hang
+forever. This may happen if you loose contact with the server during
+an operation. DBIx::QueryByName does no attempt at making execute to
+timeout. This is a design decision.
+
+The only alternative would be to implement a eval/die/alarm block
+around the execute call but that would require to run perl with
+unsafe signal handling, which the authors declined to do.
+
+For an example of how to implement such an eval/die/alarm block,
+see the source for SthPool.pm.
+
 =head1 SEE ALSO
 
 DBIx::NamedQuery: almost the same but doesn't support named
@@ -461,7 +491,7 @@ more information, please see our website.
 
 =head1 SVN INFO
 
-$Id: QueryByName.pm 5435 2009-11-09 09:50:22Z erwan $
+$Id: QueryByName.pm 5541 2009-11-18 11:09:22Z erwan $
 
 =cut
 

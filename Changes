@@ -1,4 +1,12 @@
-DBIx::QueryByName 0.06
+DBIx::QueryByName 0.08
+----------------------
+ - attempted to add timeout support for execute and decided against
+ - support bulk execution using DBI's execute_array
+ - added module SthPool.pm
+ - fixed bug in DESTROY call order
+ - fixed bug in setting InactiveDestroy for dbhs owned by other processes
+
+DBIx::QueryByName 0.07
 ----------------------
  - fixed test error
  - support spaces in xml params value

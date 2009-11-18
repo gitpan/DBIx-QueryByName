@@ -1,13 +1,24 @@
-# http://module-build.sourceforge.net/META-spec.html
-#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
-name:         DBIx-QueryByName
-version:      0.07
-version_from: lib/DBIx/QueryByName.pm
-installdirs:  site
+--- #YAML:1.0
+name:               DBIx-QueryByName
+version:            0.08
+abstract:           Execute SQL queries by name
+author:
+    - Joel Jacobson <joel@gluefinance.com, Erwan Lemonnier <erwan@gluefinance.com>
+license:            unknown
+distribution_type:  module
+configure_requires:
+    ExtUtils::MakeMaker:  0
+build_requires:
+    ExtUtils::MakeMaker:  0
 requires:
-    accessors::chained:            1.01
-    XML::Parser:                   2.34
-    XML::SimpleObject:             0.53
-
-distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.30
+    accessors::chained:  1.01
+    XML::Parser:         2.34
+    XML::SimpleObject:   0.53
+no_index:
+    directory:
+        - t
+        - inc
+generated_by:       ExtUtils::MakeMaker version 6.50
+meta-spec:
+    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
+    version:  1.4

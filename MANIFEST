@@ -1,5 +1,6 @@
 Changes
 lib/DBIx/QueryByName/DbhPool.pm
+lib/DBIx/QueryByName/SthPool.pm
 lib/DBIx/QueryByName/FromXML.pm
 lib/DBIx/QueryByName/Logger.pm
 lib/DBIx/QueryByName/QueryPool.pm
