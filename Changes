@@ -1,3 +1,7 @@
+DBIx::QueryByName 0.09
+----------------------
+ - removed unnecessary dependency to Sys::SigAction (RT #51798)
+
 DBIx::QueryByName 0.08
 ----------------------
  - attempted to add timeout support for execute and decided against

@@ -14,7 +14,7 @@ use DBIx::QueryByName::FromXML;
 
 use accessors::chained qw(_query_pool _dbh_pool _sth_pool);
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 our $AUTOLOAD;
 
@@ -491,7 +491,6 @@ more information, please see our website.
 
 =head1 SVN INFO
 
-$Id: QueryByName.pm 5541 2009-11-18 11:09:22Z erwan $
+$Id: QueryByName.pm 5607 2009-11-23 08:31:05Z erwan $
 
 =cut
-

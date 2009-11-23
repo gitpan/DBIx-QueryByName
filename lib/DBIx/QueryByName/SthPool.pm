@@ -3,7 +3,6 @@ use utf8;
 use strict;
 use warnings;
 use Data::Dumper;
-use Sys::SigAction qw( set_sig_handler );
 use DBI;
 use DBIx::QueryByName::Logger qw(get_logger debug);
 
