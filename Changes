@@ -1,3 +1,8 @@
+DBIx::QueryByName 0.10
+----------------------
+ - fix error message when calling DESTROY
+ - allow _ in parameter names
+
 DBIx::QueryByName 0.09
 ----------------------
  - removed unnecessary dependency to Sys::SigAction (RT #51798)

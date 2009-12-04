@@ -27,7 +27,7 @@ sub add_query {
             if (!defined $p);
 
         $log->logcroak("invalid query parameter: contain non alfanumeric characters [$p]")
-            if ($p !~ /^[a-zA-Z0-9\,]+$/);
+            if ($p !~ /^[a-zA-Z0-9\,_]+$/);
     }
 
     # TODO: validate the query's sql code

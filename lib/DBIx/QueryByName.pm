@@ -14,7 +14,7 @@ use DBIx::QueryByName::FromXML;
 
 use accessors::chained qw(_query_pool _dbh_pool _sth_pool);
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 our $AUTOLOAD;
 
@@ -138,6 +138,8 @@ sub AUTOLOAD {
     my $log    = get_logger();
     my $sths   = $self->_sth_pool;
     my($query) = $AUTOLOAD;
+
+    return if ($query =~ /DESTROY$/);
 
     # Do we know this query name?
     $query =~ s!^.*::([^:]+)$!$1!;
@@ -491,6 +493,6 @@ more information, please see our website.
 
 =head1 SVN INFO
 
-$Id: QueryByName.pm 5607 2009-11-23 08:31:05Z erwan $
+$Id: QueryByName.pm 5742 2009-12-04 12:49:12Z erwan $
 
 =cut
