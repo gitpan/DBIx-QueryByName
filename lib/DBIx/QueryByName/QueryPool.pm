@@ -15,6 +15,7 @@ sub add_query {
     my $sql     = $args{sql}     || $log->logcroak("BUG: undefined query sql");
     my $session = $args{session} || $log->logcroak("BUG: undefined query session");
     my $params  = $args{params}  || $log->logcroak("BUG: undefined query parameters");
+    my $result  = $args{result}  || $log->logcroak("BUG: undefined query result");
 
     $log->logcroak("invalid query name: contain non alfanumeric characters ($name)")
         if ($name !~ /^[a-zA-Z0-9_]+$/);
@@ -30,6 +31,10 @@ sub add_query {
             if ($p !~ /^[a-zA-Z0-9\,_]+$/);
     }
 
+    $result = lc $result;
+    $log->logcroak("invalid result type: $result")
+        if ($result !~ /^(sth|scalar|hashref|scalariterator|hashrefiterator)$/);
+
     # TODO: validate the query's sql code
     # TODO: validate session
     #    my $session = $args{session} || $log->logcroak("BUG: undefined query session");
@@ -38,6 +43,7 @@ sub add_query {
         sql     => $sql,
         session => $session,
         params  => $params,
+        result  => $result,
     };
 
     return $self;
@@ -53,7 +59,7 @@ sub get_query {
     my ($self, $name) = @_;
     get_logger()->logcroak("BUG: undefined query name") if (!defined $name);
     get_logger()->logcroak("BUG: undefined query name") if (!$self->knows_query($name));
-    return ($self->{$name}->{session}, $self->{$name}->{sql}, @{$self->{$name}->{params}});
+    return ($self->{$name}->{session}, $self->{$name}->{sql}, $self->{$name}->{result}, @{$self->{$name}->{params}});
 }
 
 1;
@@ -82,13 +88,15 @@ This API is subject to change!
 
 Instanciate DBIx::QueryByName::QueryPool.
 
-=item C<< $pool->add_query(name => $name, sql => $sql, session => $session, params => \@params); >>
+=item C<< $pool->add_query(name => $name, sql => $sql, session => $session, result => $result, params => \@params); >>
 
 Add a query to this pool.
+C<$result> must be one of 'sth', 'scalar', 'hash', 'scalariterator', 'hashiterator'.
 Example:
 
     $pool->add_query(name => 'get_user_adress',
                      sql => 'SELECT adress FROM adresses WHERE firstname=? AND lastname=?',
+                     result => 'sth',
                      params => [ 'firstname', 'lastname' ],
                      session => 'name_of_db_connection',
                     );

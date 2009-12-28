@@ -11,10 +11,12 @@ use DBIx::QueryByName::QueryPool;
 use DBIx::QueryByName::DbhPool;
 use DBIx::QueryByName::SthPool;
 use DBIx::QueryByName::FromXML;
+use DBIx::QueryByName::Result::HashIterator;
+use DBIx::QueryByName::Result::ScalarIterator;
 
 use accessors::chained qw(_query_pool _dbh_pool _sth_pool);
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 our $AUTOLOAD;
 
@@ -149,43 +151,73 @@ sub AUTOLOAD {
     # Transform parameters from a list of hashes into an array (if execute)
     # or an array of arrays (if execute_array)
 
-    my (undef,undef,@paramnames) = $self->_query_pool->get_query($query);
+    my (undef,undef,$result,@paramnames) = $self->_query_pool->get_query($query);
 
     # If no bulk execution (the usual case), format parameters for execute()
+    my @args;
     if (scalar @values <= 1) {
 
         debug "Preparing arguments for execute()";
         my $v = shift @values || {};
 
-        $log->logcroak("$query expects a list of hash refs as parameters")
+        $log->logcroak("$query expects a list of hash refs as parameters. Params are: ".Dumper(\@values))
             if (ref $v ne 'HASH');
 
-        my @args;
         foreach my $pname (@paramnames) {
-            $log->logcroak("parameter $pname is missing from argument hash:\n".Dumper($v))
-                if (!exists $v->{$pname});
+            _validate_param($pname,$v);
             push @args, $v->{$pname};
         }
 
-        return $sths->prepare_and_execute($query,@args);
-    }
-
-    # Else: bulk insertion. Process many hash of values at once with execute_array()
-    my @args;
-    debug "Preparing arguments for execute_array()";
-    foreach my $pname (@paramnames) {
-        my @col;
-        foreach my $v (@values) {
-            $log->logcroak("$query expects a list of hash refs as parameters")
-                if (ref $v ne 'HASH');
-            $log->logcroak("parameter $pname is missing from one of argument hashes:\n".Dumper($v))
-                if (!exists $v->{$pname});
-            push @col, $v->{$pname};
+    } else {
+        # Else: bulk insertion. Process many hash of values at once with execute_array()
+        debug "Preparing arguments for execute_array()";
+        foreach my $pname (@paramnames) {
+            my @col;
+            foreach my $v (@values) {
+                $log->logcroak("$query expects a list of hash refs as parameters. Params are: ".Dumper(\@values))
+                    if (ref $v ne 'HASH');
+                _validate_param($pname,$v);
+                push @col, $v->{$pname};
+            }
+            push @args, \@col;
         }
-        push @args, \@col;
     }
 
-    return $sths->prepare_and_execute($query,@args);
+    # execute query and return the proper result type
+    my $sth = $sths->prepare_and_execute($query,@args);
+
+    return $sth if ($result eq 'sth');
+
+    my $iterator;
+    if ($result =~ /^hashref/) {
+        debug "wrapping sth in a Result::HashIterator";
+        $iterator = new DBIx::QueryByName::Result::HashIterator($query, $sth);
+    } elsif ($result =~ /^scalar/) {
+        debug "wrapping sth in a Result::ScalarIterator";
+        $iterator = new DBIx::QueryByName::Result::ScalarIterator($query, $sth);
+    } else {
+        $log->logcroak("BUG: invalid query result type");
+    }
+
+    return $iterator if ($result =~ /iterator$/);
+
+    # get the iterator's first entry, test that it's the only one
+    debug "fetching the iterator's first result row and returning it";
+    my $entry = $iterator->next();
+
+    $log->logcroak("ERROR: query $query returned more than one row. Params are: ".Dumper(\@values))
+        if (defined $iterator->next());
+
+    return $entry;
+}
+
+sub _validate_param {
+    my ($pname,$v) = @_;
+    my $log    = get_logger();
+    $log->logcroak("parameter $pname is missing from argument hash:\n".Dumper($v))
+        if (!exists $v->{$pname});
+    $log->logcroak("expected a scalar value for parameter $pname but got: ".Dumper($v))
+        if (defined $v->{$pname} && ref $v->{$pname} ne '');
 }
 
 1;
@@ -205,6 +237,10 @@ The idea is to write the code of your SQL queries somewhere else than
 in your perl code (in a XML file for example) and let
 DBIx::QueryByName load those SQL declarations and generate methods to
 execute each query as a usual object method call.
+
+As sugar on your code, DBIx::QueryByName let you choose to get the
+queries's results as plain DBI statement handles, as single row
+results or as various iterator-like objects.
 
 This module also implements automatic database session recovery and
 query retry, when it is deemed safe to do so. It was specifically
@@ -228,7 +264,7 @@ safe.
     my $queries = <<__ENDQ__;
     <queries>
         <query name="add_job" params="id,username,description">INSERT INTO jobs (id, username, description, status) VALUES (?,?,?,0)</query>
-        <query name="get_job_count" params="">SELECT COUNT(*) FROM jobs</query>
+        <query name="get_job_count" params="" result="scalar">SELECT COUNT(*) FROM jobs</query>
     </queries>
     __ENDQ__
 
@@ -248,7 +284,7 @@ safe.
                      description => "run away from cat" } );
 
     # count the number of rows:
-    my $sth = $dbh->get_job_count();
+    my $count = $dbh->get_job_count();
 
     # then do what you usually do with a statement handler...
 
@@ -295,6 +331,111 @@ Log::Log4perl is available but not configured, you may see warnings
 poping up. Just configure a default logger in Log::Log4perl to get rid
 of them.
 
+=head1 QUERY RESULTS
+
+The result of a named query will be one of the following:
+
+=over 4
+
+=item * a DBI statement handle
+
+=item * a scalar containing the fetched value
+
+=item * a reference to a hash containing the fetched row
+
+=item * an iterator object that returns scalars
+
+=item * an iterator object that returns hashrefs
+
+=back
+
+The type of result a query should return is defined by the xml attribute 'result'
+in the named query's xml definition.
+
+=head2 Result as a sth
+
+By default, if the 'result' attribute is not set or set to C<sth>, a
+DBI statement handle is returned, on which you may call C<fetchrow*>
+or any other standard DBI method.
+
+Example:
+
+    # assuming the xml definition:
+    # <query name="get_bcd" params="a" result="sth">SELECT b,c,d FROM jobs WHERE a=?</query>
+
+    my $sth = $dbh->get_bcd({ a => 'this'});
+    while (my $v = $sth->fetchrow_hashref) {
+        # do stuff with $v
+    }
+
+=head2 Result as a hashref
+
+If the 'result' attribute is set to C<hashref>, the query gets
+executed and fetchrow_hashref is called on it. IMPORTANT: the query is
+expected to return only one row. If multiple rows may be returned, an
+error occurs. The matching row is returned as a hash reference. The
+previous example then becomes:
+
+Example:
+
+    # assuming the xml definition:
+    # <query name="get_bcd" params="a" result="hashref">SELECT b,c,d FROM jobs WHERE a=?</query>
+
+    my $v = $dbh->get_bcd({ a => 'this'});
+
+    # NOTE: an error occurs if get_bcd would return more than 1 row
+
+=head2 Result as a hashref iterator
+
+If the 'result' attribute is set to C<hashrefiterator>, the query gets
+executed and an iterator object is returned that supports the method
+C<next>. C<next> returns the next fetched row as a hashref or undef if
+no more rows are available. The previous example then becomes:
+
+Example:
+
+    # assuming the xml definition:
+    # <query name="get_bcd" params="a" result="hashrefiterator">SELECT b,c,d FROM jobs WHERE a=?</query>
+
+    my $it = $dbh->get_bcd({ a => 'this'});
+    while (my $v = $it->next) {
+        # do stuff with $v
+    }
+
+=head2 Result as a scalar
+
+If the 'result' attribute is set to C<scalar>, the query gets executed
+and fetchrow_array is called on it. IMPORTANT: the query is expected
+to return only one row and this row should have only one
+column. Anything else triggers an error. Otherwise, it returns the
+columns value as a scalar.  Usefull for queries like 'SELECT COUNT(*)
+FROM...'.
+
+Example:
+
+    # assuming the xml definition:
+    # <query name="get_max_id" params="user" result="scalar">SELECT MAX(id) FROM jobs WHERE user=?</query>
+
+    my $max = $dbh->get_max_id({ user => 'me'});
+
+=head2 Result as a scalar iterator
+
+Finally, if the 'result' attribute is set to C<scalariterator>, an
+iterator object is returned. It has the same api than for
+C<hashrefiterator>, meaning it implements the C<next> method. An error
+occurs if the returned rows have more than one column.
+
+Example:
+
+    # assuming the xml definition:
+    # <query name="get_job_id" params="a" result="scalariterator">SELECT id FROM jobs WHERE user=?</query>
+
+    # list all the jobs of user 'me'
+    my $it = $dbh->get_job_id({ user => 'me'});
+    while (my $id = $it->next) {
+        # do stuff with the scalar $id
+    }
+
 =head1 INTERFACE
 
 =over 4
@@ -332,22 +473,22 @@ NOT IMPLEMENTED YET! Autoload named queries to call all stored
 procedures declared in a postgres database to whom we can connect
 using C<$session_name>.
 
-=item C<< $dbh->$your_query_name( ) >>
+=item C<< my $res = $dbh->$your_query_name( ) >>
 
 or
 
-=item C<< $dbh->$your_query_name( {param1 => value1, param2 => value2...} ) >>
+=item C<< my $res = $dbh->$your_query_name( {param1 => value1, param2 => value2...} ) >>
 
 or
 
-=item C<< $dbh->$your_query_name( \%values1, \%values2, \%values3... ) >>
+=item C<< my $res = $dbh->$your_query_name( \%values1, \%values2, \%values3... ) >>
 
 Once you have specified how to connect to the database with
 C<connect()> and loaded some named queries with C<load()>, you can
 execute any of the sql queries by its name as a method of C<$dbh>.
 
 
-Both single execution and bulk execution are supported. 
+Both single execution and bulk execution are supported.
 
 
 If the query has no sql parameters, just call the query's method without
@@ -378,6 +519,9 @@ calling DBI's execute_array method. Example:
                       isbn => $moreblabla,
                     },
                   );
+
+For a detailed description of what the named query returns, refer
+to the section 'QUERY RESULTS'.
 
 =back
 
@@ -418,14 +562,15 @@ your own risk.
 
 =back
 
-=head1 XML FILE SYNTAX
+=head1 XML SYNTAX
 
 When calling load() with C<from_xml> or C<from_xml_file>, the XML
 string expected must have the following format:
 
     <queries>
         <query name="{query's name}"
-               params="{names of the sql's placeholders, as a comma-separated and in order of appearance}">
+               params="{names of the sql's placeholders, as a comma-separated and in order of appearance}"
+               result="one of (sth|scalar|scalariterator|hashref|hashrefiterator)">
         {some sql code with placeholders}</query>
         <query ...>...</query>
         <query ...>...</query>
@@ -434,6 +579,8 @@ string expected must have the following format:
     </queries>
 
 Always use placeholders ('?' signs) in your SQL!
+
+The C<result> tag specifies what kind of object the named query should return.
 
 =head1 DEBUGGING
 
@@ -493,6 +640,6 @@ more information, please see our website.
 
 =head1 SVN INFO
 
-$Id: QueryByName.pm 5742 2009-12-04 12:49:12Z erwan $
+$Id: QueryByName.pm 6343 2009-12-28 09:10:50Z erwan $
 
 =cut

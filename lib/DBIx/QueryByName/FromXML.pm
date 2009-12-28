@@ -43,6 +43,8 @@ sub load {
         my @params = map { $_ =~ s/^\s*//; $_ =~ s/\s*$//; $_ } split(q{,}, $params);
 #        my @params = split(q{,}, $params);
 
+        my $result = $query->attribute('result') || 'sth';
+
         if ( $qpool->knows_query($name) ) {
             # query is already imported, possibly from other XML file
             $log->logcroak("query already imported (query_name => $name, session_name => $session)");
@@ -53,6 +55,7 @@ sub load {
             name    => $name,
             sql     => $query->value,
             session => $session,
+            result  => $result,
             params  => \@params,
             );
     }

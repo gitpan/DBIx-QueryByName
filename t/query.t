@@ -18,7 +18,7 @@ BEGIN {
         plan skip_all => "test require missing module $m" if $@;
     }
 
-    plan tests => 51;
+    plan tests => 53;
 
     use_ok("DBIx::QueryByName");
 }
@@ -88,6 +88,9 @@ throws_ok { $sth = $dbh->AddJob(id => 1) } qr/AddJob expects a list of hash refs
 throws_ok { $sth = $dbh->AddJob( [id => 1] ) } qr/AddJob expects a list of hash refs as parameters/, "AddJob fails if param is array ref";
 throws_ok { $sth = $dbh->AddJob( {id => 1} ) } qr/parameter username is missing/, "AddJob fails if only one param but missing value";
 throws_ok { $sth = $dbh->AddJob( {id => 1}, {id => 2} ) } qr/parameter username is missing/, "AddJob fails if multiple params but missing value";
+
+throws_ok { $sth = $dbh->AddJob( {id => 1, username => [], description => "bleh"} ) } qr/expected a scalar value for parameter username but got/, "AddJob fails if param is not scalar";
+throws_ok { $sth = $dbh->AddJob( {id => 1, username => 'bob', description => "bleh"}, {id => 2, username => [], description => "bleh"} ) } qr/expected a scalar value for parameter username but got/, "AddJob fails if param is not scalar";
 
 lives_ok { $sth = $dbh->AddJob( { id => 1, username => 'bob', description => 'do this' } ) } "load row via session one";
 

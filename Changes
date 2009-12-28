@@ -1,3 +1,10 @@
+DBIx::QueryByName 0.11
+----------------------
+ - added the 'result' keyword to the queries's xml specification
+ - a query can now return an iterator, a scalar, a hash or a 
+   sth (default)
+ - more explicit error messages when validating query arguments
+
 DBIx::QueryByName 0.10
 ----------------------
  - fix error message when calling DESTROY
@@ -9,8 +16,8 @@ DBIx::QueryByName 0.09
 
 DBIx::QueryByName 0.08
 ----------------------
- - attempted to add timeout support for execute and decided against
- - support bulk execution using DBI's execute_array
+ - attempted to add timeout (alarm/eval) support for execute and decided against
+ - smooth support of bulk execution using DBI's execute_array
  - added module SthPool.pm
  - fixed bug in DESTROY call order
  - fixed bug in setting InactiveDestroy for dbhs owned by other processes
