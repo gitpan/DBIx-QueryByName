@@ -4,6 +4,9 @@ lib/DBIx/QueryByName/SthPool.pm
 lib/DBIx/QueryByName/FromXML.pm
 lib/DBIx/QueryByName/Logger.pm
 lib/DBIx/QueryByName/QueryPool.pm
+lib/DBIx/QueryByName/Result/Iterator.pm
+lib/DBIx/QueryByName/Result/HashIterator.pm
+lib/DBIx/QueryByName/Result/ScalarIterator.pm
 lib/DBIx/QueryByName.pm
 Makefile.PL
 MANIFEST
@@ -11,4 +14,5 @@ t/load_from_xml.t
 t/pod-coverage.t
 t/pod.t
 t/query.t
+t/iterator.t
 META.yml                                 Module meta-data (added by MakeMaker)

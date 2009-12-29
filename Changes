@@ -1,3 +1,7 @@
+DBIx::QueryByName 0.12
+----------------------
+ - .11 was broken: some modules were missing
+
 DBIx::QueryByName 0.11
 ----------------------
  - added the 'result' keyword to the queries's xml specification

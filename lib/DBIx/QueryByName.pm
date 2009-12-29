@@ -16,7 +16,7 @@ use DBIx::QueryByName::Result::ScalarIterator;
 
 use accessors::chained qw(_query_pool _dbh_pool _sth_pool);
 
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 
 our $AUTOLOAD;
 
@@ -640,6 +640,6 @@ more information, please see our website.
 
 =head1 SVN INFO
 
-$Id: QueryByName.pm 6343 2009-12-28 09:10:50Z erwan $
+$Id: QueryByName.pm 6354 2009-12-29 06:47:57Z erwan $
 
 =cut
