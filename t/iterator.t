@@ -18,7 +18,7 @@ BEGIN {
         plan skip_all => "test require missing module $m" if $@;
     }
 
-    plan tests => 44;
+    plan tests => 49;
 
     use_ok("DBIx::QueryByName");
 }
@@ -80,7 +80,7 @@ ok(!defined $res, "got undef hashref from GetJobHash");
 
 my $it = $dbh->GetJobHashIterator({ username => "bob" });
 is(ref $it, "DBIx::QueryByName::Result::HashIterator", "got a hash iterator");
-$res = $it->next;
+lives_ok { $res = $it->next('what','ever') } "no error when arguments but no row returned";
 is($res,undef, "next returns undef");
 $res = $it->next;
 is($res,undef, "and does so even the second time");
@@ -182,6 +182,29 @@ $res = $it->next;
 is_deeply($res, { id => 2 }, "next returns 1 elem");
 $res = $it->next;
 is($res,undef, "then undef");
+
+#
+# test next's arguments
+#
+
+# hashref iterator
+$it = $dbh->GetJobHashIterator({ username => "bob" });
+my @res = $it->next('status','description');
+is_deeply(\@res, [ 0, 'whatever' ], "next with 2 valid column names");
+throws_ok { $res = $it->next('id','bob') } qr/query GetJobHashIterator does not return any value named bob/, "next with invalid column name";
+
+# again, just to try out syntax
+$it = $dbh->GetJobHashIterator({ username => "bob" });
+@res = ();
+while ( my ($id, $status) = $it->next('id','status') ) {
+    last if (!defined $id);
+    push @res, $id, $status;
+}
+is_deeply(\@res, [ 1, 0, 2, 0 ], "in a while loop");
+
+# scalar iterator
+$it = $dbh->GetIdScalarIterator({ username => "bob" });
+throws_ok { $res = $it->next(1,2,3) } qr/next got unexpected arguments/, "scalar iterator accepts no arguments";
 
 # fix problem with sqlite that doesn't properly finish handles
 DBD::SQLite->DESTROY();

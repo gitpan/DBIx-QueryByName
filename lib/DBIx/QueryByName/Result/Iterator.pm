@@ -16,13 +16,19 @@ sub new {
 
 sub next { die "BUG: not implemented" }
 
+sub _finish_and_croak {
+    my ($self,$msg) = @_;
+    $self->{sth}->finish;
+    get_logger->logcroak($msg);
+}
+
 1;
 
 __END__
 
 =head1 NAME
 
-DBIx::QueryByName::Result::Iterator - Parent class to all iteratorsA scalar iterator around a statement handle
+DBIx::QueryByName::Result::Iterator - Parent class to all iterators
 
 =head1 DESCRIPTION
 
@@ -39,4 +45,3 @@ Provides an iterator-like api to a DBI statement handle. DO NOT USE DIRECTLY!
 =back
 
 =cut
-

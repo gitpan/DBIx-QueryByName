@@ -1,3 +1,8 @@
+DBIx::QueryByName 0.13
+----------------------
+ - improved error messages
+ - iterator method next() accepts arguments
+
 DBIx::QueryByName 0.12
 ----------------------
  - .11 was broken: some modules were missing

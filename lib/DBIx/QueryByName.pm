@@ -16,7 +16,7 @@ use DBIx::QueryByName::Result::ScalarIterator;
 
 use accessors::chained qw(_query_pool _dbh_pool _sth_pool);
 
-our $VERSION = '0.12';
+our $VERSION = '0.13';
 
 our $AUTOLOAD;
 
@@ -402,6 +402,15 @@ Example:
         # do stuff with $v
     }
 
+    # alternatively, tell next() to return hash values as a list:
+    while ( my ($id,$name) = $it->next('id','name') ) {
+        last if (!defined $id);
+        ...
+    }
+
+For more details on how to use hashref iterators, read the pod of
+DBIx::QueryByName::Result::HashIterator.
+
 =head2 Result as a scalar
 
 If the 'result' attribute is set to C<scalar>, the query gets executed
@@ -435,6 +444,9 @@ Example:
     while (my $id = $it->next) {
         # do stuff with the scalar $id
     }
+
+For more details on how to use scalar iterators, read the pod of
+DBIx::QueryByName::Result::ScalarIterator.
 
 =head1 INTERFACE
 

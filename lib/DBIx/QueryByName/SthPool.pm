@@ -8,13 +8,15 @@ use DBIx::QueryByName::Logger qw(get_logger debug);
 
 sub _add_sth {
     my ($self,$query,$sth) = @_;
-    die "undefined query or statement handler" if (!defined $query || !defined $sth);
+    get_logger->logcroak("undefined query or statement handler")
+        if (!defined $query || !defined $sth);
     $self->{sths}->{$$}->{$query} = $sth;
 }
 
 sub _get_sth {
     my ($self,$query) = @_;
-    die "undefined query" if (!defined $query);
+    get_logger->logcroak("undefined query")
+        if (!defined $query);
     return $self->{sths}->{$$}->{$query};
 }
 
