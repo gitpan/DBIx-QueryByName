@@ -1,3 +1,7 @@
+DBIx::QueryByName 0.14
+----------------------
+ - added call trace to some error messages
+
 DBIx::QueryByName 0.13
 ----------------------
  - improved error messages

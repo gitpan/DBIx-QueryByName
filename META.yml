@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               DBIx-QueryByName
-version:            0.13
+version:            0.14
 abstract:           Execute SQL queries by name
 author:
     - Joel Jacobson <joel@gluefinance.com, Erwan Lemonnier <erwan@gluefinance.com>

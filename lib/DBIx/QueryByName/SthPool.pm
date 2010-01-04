@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Data::Dumper;
 use DBI;
+use Carp qw(cluck);
 use DBIx::QueryByName::Logger qw(get_logger debug);
 
 sub _add_sth {
@@ -60,7 +61,7 @@ sub _prepare {
     # TODO: add more verbose error description?
     # TODO: retry in some smart way?
     if (!defined $sth) {
-        $log->logcroak("failed to prepare query [$query]");
+        $log->logcroak("failed to prepare query [$query]. Trace: ".cluck);
     }
 
     $self->_add_sth($query,$sth);
@@ -122,13 +123,13 @@ sub prepare_and_execute {
             # NOTE: if execute times-out properly, it raises an error with code 7 and text 'could not receive data from server: Operation timed out'
             if ( $err == 7 && $errstr =~ m/could not connect to server|no connection to the server|terminating connection due to administrator command/ ) {
 
-                $log->error("Query $query failed, will try again, Error code [$err], Error message [$errstr]" )
+                $log->error("Query $query failed, will try again, Error code [$err], Error message [$errstr]. Trace: ".cluck)
                     if ($error_reported == 0);
 
                 # try to reconnect to database
                 my $dbh = $self->{dbhpool}->connect($session);
                 unless ($dbh->ping()) {
-                    debug "Can ping database. Trying to disconnect, re-connect and re-prepare";
+                    debug "Can ping database. Trying to disconnect, re-connect and re-prepare.";
                     $self->{dbhpool}->disconnect($session);
                     $self->finish_all_sths();  # TODO: do we really want to finish ALL queries or only those in this session?
                     # TODO: shouldn't we finish first, disconnect then?
@@ -139,7 +140,7 @@ sub prepare_and_execute {
                 }
 
             } else {
-                $log->logcroak("Query $query failed, won't try again, Error code [$err], Error message [$errstr]" );
+                $log->logcroak("Query $query failed, won't try again, Error code [$err], Error message [$errstr]. Trace: ".cluck);
                 # TODO: use sth's pg_cmd_status to warn extra if it was a delete/update/insert query
                 return undef; # Will never reach this line, logcroak will die, but just in case
             }

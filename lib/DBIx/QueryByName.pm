@@ -3,6 +3,7 @@ use utf8;
 use strict;
 use warnings;
 use DBI;
+use Carp qw(cluck);
 use XML::Parser;
 use XML::SimpleObject;
 use Data::Dumper;
@@ -16,7 +17,7 @@ use DBIx::QueryByName::Result::ScalarIterator;
 
 use accessors::chained qw(_query_pool _dbh_pool _sth_pool);
 
-our $VERSION = '0.13';
+our $VERSION = '0.14';
 
 our $AUTOLOAD;
 
@@ -93,7 +94,7 @@ sub query {
 
     # TODO: shouldn't we get arguments here? @_ passed to execute()?
     my $sth = $self->_dbh_pool()->connect($session)->prepare($sql);
-    $sth->execute() or $log->logcroak("Query $sql failed, Error string " . $sth->errstr );
+    $sth->execute() or $log->logcroak("Query $sql failed, Error string " . $sth->errstr . "\nTrace: ".cluck);
     return $sth;
 }
 
@@ -652,6 +653,6 @@ more information, please see our website.
 
 =head1 SVN INFO
 
-$Id: QueryByName.pm 6354 2009-12-29 06:47:57Z erwan $
+$Id: QueryByName.pm 6376 2010-01-04 10:29:36Z erwan $
 
 =cut
