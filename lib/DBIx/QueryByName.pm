@@ -17,7 +17,7 @@ use DBIx::QueryByName::Result::ScalarIterator;
 
 use accessors::chained qw(_query_pool _dbh_pool _sth_pool);
 
-our $VERSION = '0.14';
+our $VERSION = '0.15';
 
 our $AUTOLOAD;
 
@@ -156,7 +156,8 @@ sub AUTOLOAD {
 
     # If no bulk execution (the usual case), format parameters for execute()
     my @args;
-    if (scalar @values <= 1) {
+    my $bulk_insertion = (scalar @values > 1) ? 1 : 0;
+    if (!$bulk_insertion) {
 
         debug "Preparing arguments for execute()";
         my $v = shift @values || {};
@@ -168,7 +169,6 @@ sub AUTOLOAD {
             _validate_param($pname,$v);
             push @args, $v->{$pname};
         }
-
     } else {
         # Else: bulk insertion. Process many hash of values at once with execute_array()
         debug "Preparing arguments for execute_array()";
@@ -183,9 +183,14 @@ sub AUTOLOAD {
             push @args, \@col;
         }
     }
+    debug "Arguments:" . Dumper(\@args);
 
     # execute query and return the proper result type
-    my $sth = $sths->prepare_and_execute($query,@args);
+    my $sth = $sths->prepare_and_execute(
+        query_name     => $query,
+        query_args     => \@args,
+        bulk_insertion => $bulk_insertion
+    );
 
     return $sth if ($result eq 'sth');
 
@@ -218,7 +223,7 @@ sub _validate_param {
     $log->logcroak("parameter $pname is missing from argument hash:\n".Dumper($v))
         if (!exists $v->{$pname});
     $log->logcroak("expected a scalar value for parameter $pname but got: ".Dumper($v))
-        if (defined $v->{$pname} && ref $v->{$pname} ne '');
+        if (defined $v->{$pname} && !(ref $v->{$pname} eq '' || ref $v->{$pname} eq 'ARRAY'));
 }
 
 1;
@@ -480,12 +485,6 @@ C<$string>. Afterward, to execute those queries just call the method
 of the same name on C<$dbh>. This method will automatically execute
 the corresponding query over the database connection C<$session_name>.
 
-=item C<< $dbh->load(session => $session_name, from_pg => 1); >>
-
-NOT IMPLEMENTED YET! Autoload named queries to call all stored
-procedures declared in a postgres database to whom we can connect
-using C<$session_name>.
-
 =item C<< my $res = $dbh->$your_query_name( ) >>
 
 or
@@ -500,9 +499,7 @@ Once you have specified how to connect to the database with
 C<connect()> and loaded some named queries with C<load()>, you can
 execute any of the sql queries by its name as a method of C<$dbh>.
 
-
 Both single execution and bulk execution are supported.
-
 
 If the query has no sql parameters, just call the query's method without
 parameters. Example:
@@ -653,6 +650,6 @@ more information, please see our website.
 
 =head1 SVN INFO
 
-$Id: QueryByName.pm 6376 2010-01-04 10:29:36Z erwan $
+$Id: QueryByName.pm 7848 2010-03-15 08:11:12Z erwan $
 
 =cut

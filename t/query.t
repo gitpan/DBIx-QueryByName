@@ -18,7 +18,7 @@ BEGIN {
         plan skip_all => "test require missing module $m" if $@;
     }
 
-    plan tests => 53;
+    plan tests => 54;
 
     use_ok("DBIx::QueryByName");
 }
@@ -89,10 +89,12 @@ throws_ok { $sth = $dbh->AddJob( [id => 1] ) } qr/AddJob expects a list of hash 
 throws_ok { $sth = $dbh->AddJob( {id => 1} ) } qr/parameter username is missing/, "AddJob fails if only one param but missing value";
 throws_ok { $sth = $dbh->AddJob( {id => 1}, {id => 2} ) } qr/parameter username is missing/, "AddJob fails if multiple params but missing value";
 
-throws_ok { $sth = $dbh->AddJob( {id => 1, username => [], description => "bleh"} ) } qr/expected a scalar value for parameter username but got/, "AddJob fails if param is not scalar";
-throws_ok { $sth = $dbh->AddJob( {id => 1, username => 'bob', description => "bleh"}, {id => 2, username => [], description => "bleh"} ) } qr/expected a scalar value for parameter username but got/, "AddJob fails if param is not scalar";
+throws_ok { $sth = $dbh->AddJob( {id => 1, username => {}, description => "bleh"} ) } qr/expected a scalar value for parameter username but got/, "AddJob fails if param is not scalar or an arrayref";
+throws_ok { $sth = $dbh->AddJob( {id => 1, username => 'bob', description => "bleh"}, {id => 2, username => {}, description => "bleh"} ) } qr/expected a scalar value for parameter username but got/, "AddJob fails if param is not scalar";
 
 lives_ok { $sth = $dbh->AddJob( { id => 1, username => 'bob', description => 'do this' } ) } "load row via session one";
+
+lives_ok { $sth = $dbh->AddJob( { id => 666, username => ['bob'], description => 'do this' } ) } "accepts even arrayref arguments";
 
 # skip this test: it causes a bus error :)
 #throws_ok { $dbh->AddJob( { id => 1, username => 'bob', description => 'do that' } ) } qr/primary key must be unique/i, "insert fail if non unique primary key";
@@ -159,7 +161,7 @@ $sth->finish;
 throws_ok { $sth = $dbh->query() } qr/undefined session argument/, "query() dies with no argument";
 throws_ok { $sth = $dbh->query('one') } qr/undefined sql string argument/, "query() dies with only session argument";
 lives_ok  { $sth = $dbh->query('two',"SELECT COUNT(*) FROM jobs") } "calling query()";
-is_deeply( [ $sth->fetchrow_array() ], [ 5 ], "got correct row count");
+is_deeply( [ $sth->fetchrow_array() ], [ 6 ], "got correct row count");
 $sth->finish;
 
 # test bulk insertion
@@ -173,7 +175,7 @@ my @rows = (
 lives_ok { $dbh->AddJob(@rows) } "insert 4 rows at once";
 
 lives_ok  { $sth = $dbh->query('two',"SELECT COUNT(*) FROM jobs") } "calling query()";
-is_deeply( [ $sth->fetchrow_array() ], [ 9 ], "got correct row count");
+is_deeply( [ $sth->fetchrow_array() ], [ 10 ], "got correct row count");
 $sth->finish;
 
 # now let's see that the inserted data was correct

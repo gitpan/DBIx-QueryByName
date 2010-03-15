@@ -69,9 +69,17 @@ sub _prepare {
 }
 
 sub prepare_and_execute {
-    # TODO: support multiple args
-    my ($self,$query,@args) = @_;
+    my ($self,%args) = @_;
     my $log = get_logger();
+
+    my $query           = $args{query_name} || $log->logcroak("undefined query name");
+    my $bulk_insertion  = $args{bulk_insertion};
+    $log->logcroak("undefined bulk insertion flag") if (!defined $bulk_insertion);
+
+    $log->logcroak("undefined or wrong query args")
+        if (!exists $args{query_args} || ref $args{query_args} ne 'ARRAY');
+    my @args = @{$args{query_args}};
+
     my ($session,undef) = $self->{querypool}->get_query($query);
 
     my $sth = $self->_prepare($query);
@@ -104,12 +112,17 @@ sub prepare_and_execute {
         # to compromise DBD::Pg by interupting impromptuously.
 
         # WARNING: execute* might hang forever
-        if (scalar @args && ref $args[0] eq 'ARRAY') {
+        if ($bulk_insertion == 1) {
+            unless (scalar @args && ref $args[0] eq 'ARRAY') {
+                $log->logcroak("invalid data structure of args for bulk insertion:" . Dumper(\@args));
+            }
             debug "Calling execute_array for query $query";
             $rv = $sth->execute_array({},@args);
-        } else {
-            debug "Calling execute for query $query";
+        } elsif($bulk_insertion == 0) {
+            debug "Calling execute for query $query with args" . Dumper(\@args);
             $rv = $sth->execute(@args);
+        } else {
+            $log->logcroak("unexpected value of bulk_insertion: " . Dumper($bulk_insertion));
         }
 
         if (!defined $rv) {

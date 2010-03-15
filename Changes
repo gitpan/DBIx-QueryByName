@@ -1,3 +1,8 @@
+DBIx::QueryByName 0.15
+----------------------
+ - fixed so a query can receive arrayref in argument, without
+   interfering with bulk execution.
+
 DBIx::QueryByName 0.14
 ----------------------
  - added call trace to some error messages
@@ -14,7 +19,7 @@ DBIx::QueryByName 0.12
 DBIx::QueryByName 0.11
 ----------------------
  - added the 'result' keyword to the queries's xml specification
- - a query can now return an iterator, a scalar, a hash or a 
+ - a query can now return an iterator, a scalar, a hash or a
    sth (default)
  - more explicit error messages when validating query arguments
 
@@ -29,11 +34,13 @@ DBIx::QueryByName 0.09
 
 DBIx::QueryByName 0.08
 ----------------------
- - attempted to add timeout (alarm/eval) support for execute and decided against
+ - attempted to add timeout (alarm/eval) support for execute and
+   decided against
  - smooth support of bulk execution using DBI's execute_array
  - added module SthPool.pm
  - fixed bug in DESTROY call order
- - fixed bug in setting InactiveDestroy for dbhs owned by other processes
+ - fixed bug in setting InactiveDestroy for dbhs owned by other
+   processes
 
 DBIx::QueryByName 0.07
 ----------------------
@@ -47,8 +54,8 @@ DBIx::QueryByName 0.06
 
 DBIx::QueryByName 0.05
 ----------------------
- - don't retry when execute fails because the 'server closed the connection unexpectedly',
-   die instead
+ - don't retry when execute fails because the 'server closed the
+   connection unexpectedly', die instead
  - better pod
  - Logger supports more Log4perl methods
 
