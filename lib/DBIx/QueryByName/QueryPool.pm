@@ -2,7 +2,7 @@ package DBIx::QueryByName::QueryPool;
 use utf8;
 use strict;
 use warnings;
-use DBIx::QueryByName::Logger qw(get_logger);
+use DBIx::QueryByName::Logger qw(get_logger debug);
 
 sub new {
     return bless( {}, $_[0] );
@@ -39,6 +39,8 @@ sub add_query {
     # TODO: validate session
     #    my $session = $args{session} || $log->logcroak("BUG: undefined query session");
 
+    debug "adding query $name to pool, under session $session";
+
     $self->{$name} = {
         sql     => $sql,
         session => $session,
@@ -47,6 +49,18 @@ sub add_query {
     };
 
     return $self;
+}
+
+sub delete_queries {
+    my ($self, $session) = @_;
+    get_logger()->logcroak("BUG: undefined query session") unless defined $session;
+
+    foreach my $name (keys %$self) {
+        if (exists $self->{$name}->{session} && $self->{$name}->{session} eq $session) {
+            delete $self->{$name};
+            debug "removing query $name from pool, under session $session";
+        }
+    }
 }
 
 sub knows_query {
@@ -104,6 +118,10 @@ Example:
 =item C<< $pool->knows_query($name); >>
 
 True if the pool already contains a query with that name. False otherwise.
+
+=item C<< $pool->delete_queries($session); >>
+
+Remove all the queries added under session C<$session>.
 
 =item C<< my ($session,$sql,@params) = $pool->get_query($name); >>
 

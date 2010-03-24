@@ -18,7 +18,7 @@ BEGIN {
         plan skip_all => "test require missing module $m" if $@;
     }
 
-    plan tests => 54;
+    plan tests => 64;
 
     use_ok("DBIx::QueryByName");
 }
@@ -81,6 +81,11 @@ throws_ok { $dbh->AddJob( { id => 1, username => 'bob', description => 'do this'
 $dbh->connect('one',"dbi:SQLite:$tmpdb");
 $dbh->connect('two',"dbi:SQLite:$tmpdb");
 
+# can?
+is($dbh->can("AddJob"), 1, "can(AddJob)");
+is($dbh->can("GetAllUserJobs"), 1, "can(GetAllUserJobs)");
+is($dbh->can("BoB"), 0, "can(BoB)");
+
 # add a few rows
 my $sth;
 throws_ok { $sth = $dbh->AddJob() } qr/parameter .* is missing from argument hash/, "AddJob fails if no params";
@@ -96,10 +101,21 @@ lives_ok { $sth = $dbh->AddJob( { id => 1, username => 'bob', description => 'do
 
 lives_ok { $sth = $dbh->AddJob( { id => 666, username => ['bob'], description => 'do this' } ) } "accepts even arrayref arguments";
 
+# try reloading
+lives_ok { $sth = $dbh->unload(session => "two") } "calling unload";
+is($dbh->can("AddJob"), 1, "can(AddJob)");
+is($dbh->can("GetAllUserJobs"), 0, "can(GetAllUserJobs)");
+
 # skip this test: it causes a bus error :)
 #throws_ok { $dbh->AddJob( { id => 1, username => 'bob', description => 'do that' } ) } qr/primary key must be unique/i, "insert fail if non unique primary key";
 lives_ok { $dbh->AddJob( { id => 2, username => 'bob', description => 'do that' } ) } "load row via session one";
 lives_ok { $dbh->AddJob( { id => 3, username => 'joe', description => 'do something else' } ) } "load row via session one";
+
+# but cannot call unloaded queries
+throws_ok { $dbh->GetAllUserJobs() } qr/unknown database query name/, "error on unloaded query";
+lives_ok { $dbh->load(session => 'two', from_xml => $queries) } "reloading queries for session two";
+is($dbh->can("AddJob"), 1, "can(AddJob)");
+is($dbh->can("GetAllUserJobs"), 1, "can(GetAllUserJobs)");
 
 # mess up query arguments
 #throws_ok { $dbh->AddJob( { username => 'joe', description => 'bob' } ) } qr/called with 2 bind variables when 3 are needed/, "missing one query param";

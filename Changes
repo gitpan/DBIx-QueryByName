@@ -1,3 +1,7 @@
+DBIx::QueryByName 0.16
+----------------------
+ - added can() and unload($session)
+
 DBIx::QueryByName 0.15
 ----------------------
  - fixed so a query can receive arrayref in argument, without

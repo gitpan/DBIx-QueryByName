@@ -17,7 +17,7 @@ use DBIx::QueryByName::Result::ScalarIterator;
 
 use accessors::chained qw(_query_pool _dbh_pool _sth_pool);
 
-our $VERSION = '0.15';
+our $VERSION = '0.16';
 
 our $AUTOLOAD;
 
@@ -131,6 +131,26 @@ sub load {
         if (scalar keys %args);
 
     return $self;
+}
+
+# unload all queries loaded under a given session
+sub unload {
+    my ($self, %args) = @_;
+    my $session = delete $args{session} ||
+        get_logger()->logcroak("undefined session name in load()");
+
+    $self->_query_pool->delete_queries($session);
+    $self->_sth_pool->finish_all_sths();
+
+    return $self;
+}
+
+# check if this method is supported
+sub can {
+    my ($self,$query) = @_;
+    get_logger()->logcroak("undefined query name")
+        unless defined $query;
+    return $self->_query_pool->knows_query($query);
 }
 
 # Intercept method calls and execute the corresponding loaded query
@@ -474,16 +494,24 @@ session.
 Example:
     $dbh->connect('db',"dbi:Pg:dbname=$db;host=$host;port=$port", $username, $password, {pg_enable_utf8 => 1});
 
-=item C<< $dbh->load(session => $session_name, from_xml_file => $file); >>
+=item C<< $dbh->load(session => $session_name, from_xml_file => $file) >>
 
 or
 
-=item C<< $dbh->load(session => $session_name, from_xml => $string); >>
+=item C<< $dbh->load(session => $session_name, from_xml => $string) >>
 
 Load SQL queries from the xml query file C<$queryfile> or the string
 C<$string>. Afterward, to execute those queries just call the method
 of the same name on C<$dbh>. This method will automatically execute
 the corresponding query over the database connection C<$session_name>.
+Return C<$dbh>.
+
+=item C<< $dbh->unload(session => $session_name) >>
+
+Unload all the queries previously loaded under the session
+C<$session_name>. This let's you implement a reload mechanism in which
+you would call C<unload> followed by a number of calls to C<load>.
+Return C<$dbh>.
 
 =item C<< my $res = $dbh->$your_query_name( ) >>
 
@@ -532,6 +560,10 @@ calling DBI's execute_array method. Example:
 
 For a detailed description of what the named query returns, refer
 to the section 'QUERY RESULTS'.
+
+=item C<< my $bool = $dbh->can($query_name) >>
+
+Return 1 if the query C<$query_name> is implemented, 0 if not.
 
 =back
 
@@ -650,6 +682,6 @@ more information, please see our website.
 
 =head1 SVN INFO
 
-$Id: QueryByName.pm 7848 2010-03-15 08:11:12Z erwan $
+$Id: QueryByName.pm 7975 2010-03-24 14:21:21Z erwan $
 
 =cut
