@@ -1,3 +1,15 @@
+DBIx::QueryByName 0.17
+----------------------
+ - fixed Log4perl 'Root logger not initialized' message
+ - added the xml 'retry' attribute to specify per query what to do
+   upon getting a timeout
+ - added to_list() method to iterators which returns the iterator's
+   contents as a list
+ - added params() which returns a list of the parameter names required
+   by a query
+ - fixed a bug in DbhPool: InactiveDestroy was only set when children
+   called connect()
+
 DBIx::QueryByName 0.16
 ----------------------
  - added can() and unload($session)

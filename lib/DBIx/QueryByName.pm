@@ -17,7 +17,7 @@ use DBIx::QueryByName::Result::ScalarIterator;
 
 use accessors::chained qw(_query_pool _dbh_pool _sth_pool);
 
-our $VERSION = '0.16';
+our $VERSION = '0.17';
 
 our $AUTOLOAD;
 
@@ -151,6 +151,20 @@ sub can {
     get_logger()->logcroak("undefined query name")
         unless defined $query;
     return $self->_query_pool->knows_query($query);
+}
+
+sub params {
+    my ($self, $query) = @_;
+
+    get_logger()->logcroak("undefined query name")
+        unless defined $query;
+
+    if ($self->can($query)) {
+        my (undef, undef, undef, @params) = $self->_query_pool->get_query($query);
+        return @params;
+    }
+
+    return;
 }
 
 # Intercept method calls and execute the corresponding loaded query
@@ -341,6 +355,9 @@ corresponding DBI calls and will fail in the same way.
 Any other connection or execution failure will still result in a
 die/croak that you will have to catch and handle from within your
 application.
+
+You may change this default behavior per query by setting the C<retry>
+attribute in the query's xml definition (See 'XML SYNTAX').
 
 =head1 SUPPORTED DATABASES
 
@@ -565,6 +582,10 @@ to the section 'QUERY RESULTS'.
 
 Return 1 if the query C<$query_name> is implemented, 0 if not.
 
+=item C<< my @params = $dbh->params($query_name) >>
+
+Return the named parameters expected by the query C<$query_name>.
+
 =back
 
 The following methods are just aliases for the corresponding DBI
@@ -612,7 +633,8 @@ string expected must have the following format:
     <queries>
         <query name="{query's name}"
                params="{names of the sql's placeholders, as a comma-separated and in order of appearance}"
-               result="one of (sth|scalar|scalariterator|hashref|hashrefiterator)">
+               result="one of (sth|scalar|scalariterator|hashref|hashrefiterator)"
+               retry="one of (safe|always|never)">
         {some sql code with placeholders}</query>
         <query ...>...</query>
         <query ...>...</query>
@@ -623,6 +645,17 @@ string expected must have the following format:
 Always use placeholders ('?' signs) in your SQL!
 
 The C<result> tag specifies what kind of object the named query should return.
+
+The C<retry> attribute is optional and tells DBIx::QueryByName how to
+behave upon getting a timeout error from the server. If C<retry> is
+set to 'never', the query will never be retried if it fails. If
+C<retry> is set to 'safe', the query will be retried only if it failed
+with an error message that guarrantees that the query was not executed
+by the server. If C<retry> is set to 'always' and the error message is
+a known one (see SthPool.pm), the query gets retried. Note that this
+feature recognizes only a restricted subset of server error messages,
+and does not support servers other than postgres. If C<retry> is
+omitted, it defaults to 'safe'.
 
 =head1 DEBUGGING
 
@@ -682,6 +715,6 @@ more information, please see our website.
 
 =head1 SVN INFO
 
-$Id: QueryByName.pm 7975 2010-03-24 14:21:21Z erwan $
+$Id$
 
 =cut

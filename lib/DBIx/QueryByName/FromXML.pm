@@ -45,6 +45,20 @@ sub load {
 
         my $result = $query->attribute('result') || 'sth';
 
+        # The retry attribute controls how to handle network problems.
+        # We will always attempt to reconnect to the database if we lose connection.
+        # The "retry" attribute controls if we should attempt to execute the query again,
+        # if we have reasons to believe it was not executed when we last tried,
+        # such as a interrupted network call.
+        #
+        # safe   : execute again if there is no risk it has already been executed.
+        # never  : do not execute again
+        # always : execute again, even if it might already have been executed
+        my $retry = $query->attribute('retry') || 'safe';
+        if ($retry !~ m/^(safe|never|always)$/) {
+            $log->logcroak("invalid value of retry attribute: $retry");
+        }
+
         if ( $qpool->knows_query($name) ) {
             # query is already imported, possibly from other XML file
             $log->logcroak("query already imported (query_name => $name, session_name => $session)");
@@ -57,7 +71,8 @@ sub load {
             session => $session,
             result  => $result,
             params  => \@params,
-            );
+            retry   => $retry
+        );
     }
 }
 

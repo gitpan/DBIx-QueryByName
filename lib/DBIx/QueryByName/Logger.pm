@@ -16,7 +16,8 @@ eval 'use Log::Log4perl';
 $LOG4PERLEXISTS = 0 if (defined $@ && $@ ne '');
 
 sub get_logger {
-    return ($LOG4PERLEXISTS) ? Log::Log4perl::get_logger() : $SELF;
+    return $SELF unless $LOG4PERLEXISTS && Log::Log4perl->initialized();
+    return Log::Log4perl::get_logger();
 }
 
 # default logger methods

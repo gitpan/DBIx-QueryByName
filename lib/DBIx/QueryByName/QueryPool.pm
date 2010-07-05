@@ -16,6 +16,7 @@ sub add_query {
     my $session = $args{session} || $log->logcroak("BUG: undefined query session");
     my $params  = $args{params}  || $log->logcroak("BUG: undefined query parameters");
     my $result  = $args{result}  || $log->logcroak("BUG: undefined query result");
+    my $retry   = $args{retry}   || $log->logcroak("BUG: undefined query retry");
 
     $log->logcroak("invalid query name: contain non alfanumeric characters ($name)")
         if ($name !~ /^[a-zA-Z0-9_]+$/);
@@ -35,6 +36,9 @@ sub add_query {
     $log->logcroak("invalid result type: $result")
         if ($result !~ /^(sth|scalar|hashref|scalariterator|hashrefiterator)$/);
 
+    $log->logcroak("invalid retry type: $result")
+        if ($retry !~ /^(safe|never|always)$/);
+
     # TODO: validate the query's sql code
     # TODO: validate session
     #    my $session = $args{session} || $log->logcroak("BUG: undefined query session");
@@ -46,6 +50,7 @@ sub add_query {
         session => $session,
         params  => $params,
         result  => $result,
+        retry   => $retry,
     };
 
     return $self;
@@ -72,8 +77,15 @@ sub knows_query {
 sub get_query {
     my ($self, $name) = @_;
     get_logger()->logcroak("BUG: undefined query name") if (!defined $name);
-    get_logger()->logcroak("BUG: undefined query name") if (!$self->knows_query($name));
+    get_logger()->logcroak("BUG: unknown query $name") if (!$self->knows_query($name));
     return ($self->{$name}->{session}, $self->{$name}->{sql}, $self->{$name}->{result}, @{$self->{$name}->{params}});
+}
+
+sub get_retry_attribute {
+    my ($self, $name) = @_;
+    get_logger()->logcroak("BUG: undefined query name") if (!defined $name);
+    get_logger()->logcroak("BUG: unknown query $name") if (!$self->knows_query($name));
+    return $self->{$name}->{retry};
 }
 
 1;
@@ -113,6 +125,7 @@ Example:
                      result => 'sth',
                      params => [ 'firstname', 'lastname' ],
                      session => 'name_of_db_connection',
+                     retry => 'never',
                     );
 
 =item C<< $pool->knows_query($name); >>
@@ -127,6 +140,10 @@ Remove all the queries added under session C<$session>.
 
 Return the name of the database session, the sql code and the named parameters
 of the query named C<$name>. Croak if no query with that name.
+
+=item C<< my $retry = $pool->get_retry_attribute($name); >>
+
+Return the retry attribute for this query, one of 'always', 'never' or 'safe'.
 
 =back
 

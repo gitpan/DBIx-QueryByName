@@ -16,5 +16,5 @@ WriteMakefile(
         'XML::SimpleObject' => 0.53,
         'accessors::chained' => 1.01,
     },
-    AUTHOR          => "Joel Jacobson <joel\@gluefinance.com, Erwan Lemonnier <erwan\@gluefinance.com>",
+    AUTHOR          => "Joel Jacobson <joel\@gluefinance.com, Erwan Lemonnier <erwan\@gluefinance.com>, Claes Jakobsson <claes\@gluefinance.com>",
     );

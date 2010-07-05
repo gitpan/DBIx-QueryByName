@@ -6,6 +6,7 @@ use Data::Dumper;
 use DBI;
 use Carp qw(cluck);
 use DBIx::QueryByName::Logger qw(get_logger debug);
+use Scalar::Util qw(weaken);
 
 sub _add_sth {
     my ($self,$query,$sth) = @_;
@@ -28,6 +29,7 @@ sub new {
 sub parent {
     my ($self, $parent) = @_;
     $self->{dbhpool} = $parent->_dbh_pool;
+    weaken $self->{dbhpool};
     $self->{querypool} = $parent->_query_pool;
 }
 
@@ -39,7 +41,7 @@ sub finish_all_sths {
             $self->{sths}->{$$}->{$query}->finish;
         }
     }
-    undef($self->{sths}->{$$});
+    delete $self->{sths}->{$$};
 }
 
 sub _prepare {
@@ -81,6 +83,11 @@ sub prepare_and_execute {
     my @args = @{$args{query_args}};
 
     my ($session,undef) = $self->{querypool}->get_query($query);
+
+    my $retry = $self->{querypool}->get_retry_attribute($query);
+    my $error_connection_lost   = qr/could not connect to server|no connection to the server|terminating connection due to administrator command/;
+    my $error_state_unknown = qr/server closed the connection unexpectedly|could not receive data from server|terminating connection due to administrator command/;
+
 
     my $sth = $self->_prepare($query);
 
@@ -134,7 +141,14 @@ sub prepare_and_execute {
             # if connection error while executing, retry
             # TODO: support error messages per database type
             # NOTE: if execute times-out properly, it raises an error with code 7 and text 'could not receive data from server: Operation timed out'
-            if ( $err == 7 && $errstr =~ m/could not connect to server|no connection to the server|terminating connection due to administrator command/ ) {
+            if (
+                $err == 7 &&
+                (
+                    ($retry eq 'safe' && $errstr =~ m/$error_connection_lost/)
+                    ||
+                    ($retry eq 'always' && ($errstr =~ m/$error_connection_lost/ || $errstr =~ m/$error_state_unknown/))
+                )
+            ) {
 
                 $log->error("Query $query failed, will try again, Error code [$err], Error message [$errstr]. Trace: ".cluck)
                     if ($error_reported == 0);
@@ -233,4 +247,3 @@ with C<$queryname>
 =back
 
 =cut
-

@@ -18,7 +18,7 @@ BEGIN {
         plan skip_all => "test require missing module $m" if $@;
     }
 
-    plan tests => 64;
+    plan tests => 67;
 
     use_ok("DBIx::QueryByName");
 }
@@ -85,6 +85,11 @@ $dbh->connect('two',"dbi:SQLite:$tmpdb");
 is($dbh->can("AddJob"), 1, "can(AddJob)");
 is($dbh->can("GetAllUserJobs"), 1, "can(GetAllUserJobs)");
 is($dbh->can("BoB"), 0, "can(BoB)");
+
+# params
+is_deeply([$dbh->params("AddJob")], [qw(id username description)]);
+is_deeply([$dbh->params("GetAllUserJobs")], [qw(username)]);
+is_deeply([$dbh->params("BoB")], []);
 
 # add a few rows
 my $sth;

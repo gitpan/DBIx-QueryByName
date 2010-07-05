@@ -16,6 +16,24 @@ sub new {
 
 sub next { die "BUG: not implemented" }
 
+sub to_list {
+    my $self = shift;
+
+    my @r;
+    while (1) {
+        my $v = $self->next;
+
+        # Abort when sth is gone, we can't check for undef
+        # value in $v because NULL is a valid return from a
+        # query
+        last unless $self->{sth};
+
+        push @r, $v;
+    }
+
+    return @r;
+}
+
 sub _finish_and_croak {
     my ($self,$msg) = @_;
     $self->{sth}->finish;
@@ -41,6 +59,13 @@ Provides an iterator-like api to a DBI statement handle. DO NOT USE DIRECTLY!
 =item C<< new($query,$sth) >>
 
 =item C<< $i->next() >>
+
+Returns the next row fetched by this iterator, of undef if no more
+rows are to be fetched.
+
+=item C<< $i->to_list() >>
+
+Returns all items from the iterator as a list
 
 =back
 

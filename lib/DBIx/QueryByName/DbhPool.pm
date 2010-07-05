@@ -1,10 +1,12 @@
 package DBIx::QueryByName::DbhPool;
+
 use utf8;
 use strict;
 use warnings;
-use Data::Dumper;
+
 use DBI;
 use DBIx::QueryByName::Logger qw(get_logger debug);
+use Scalar::Util qw(weaken);
 
 sub new {
     return bless( { connections => {}, config => {} }, $_[0] );
@@ -13,6 +15,7 @@ sub new {
 sub parent {
     my ($self, $parent) = @_;
     $self->{sthpool} = $parent->_sth_pool;
+    weaken $self->{sthpool};
 }
 
 sub add_credentials {
@@ -32,6 +35,27 @@ sub knows_session {
     return (exists $self->{config}->{$session}) ? 1 : 0;
 }
 
+sub _inactivate_parent_connections {
+    my $self = shift;
+
+    foreach my $pid ( keys %{$self->{connections}} ) {
+        foreach my $session ( keys %{$self->{connections}->{$pid}} ) {
+            if ( $$ != $pid ) {
+                if ( defined $self->{connections}->{$pid}->{$session}->{InactiveDestroy} &&
+                     $self->{connections}->{$pid}->{$session}->{InactiveDestroy} != 1 ) {
+                    # the connection belongs to an other process than self.
+                    # Prevent forked child (this pid) from disconnecting the database connection
+                    debug "Setting connection for pid $$ and session $session as InactiveDestroy";
+                    $self->{connections}->{$pid}->{$session}->{InactiveDestroy} = 1;
+                    delete $self->{connections}->{$pid}->{$session};
+                }
+            }
+        }
+    }    
+    
+    1;
+}
+
 # open database connection for the given session and return a database
 # handler
 sub connect {
@@ -45,21 +69,8 @@ sub connect {
     # other processes connections. Even then, there is a risk that a
     # process that just forks but open no own connections will close
     # all the connections of related processes upon exit.
-    foreach my $pid ( keys %{$self->{connections}} ) {
-        foreach my $session ( keys %{$self->{connections}->{$pid}} ) {
-            if ( $$ != $pid ) {
-                if ( defined $self->{connections}->{$pid}->{$session}->{InactiveDestroy} &&
-                     $self->{connections}->{$pid}->{$session}->{InactiveDestroy} != 1 ) {
-                    # the connection belongs to an other process than self.
-                    # Prevent forked child (this pid) from disconnecting the database connection
-                    debug "Setting connection for pid $$ and session $session as InactiveDestroy";
-                    $self->{connections}->{$pid}->{$session}->{InactiveDestroy} = 1;
-                    undef $self->{connections}->{$pid}->{$session};
-                }
-            }
-        }
-    }
-
+    $self->_inactivate_parent_connections();
+    
     # try to open database connection
     # TODO: implement a giveup limit?
     my $error_reported = 0;
@@ -84,26 +95,29 @@ sub connect {
         } else {
             debug "Connected to database";
         }
+
         return $dbh;
     }
 }
 
 sub disconnect {
     my ($self, $session) = @_;
-	my $log = get_logger();
+
+    my $log = get_logger();
     $log->logcroak("undefined session name")   if (!defined $session);
     $log->logcroak("not a known session name") if (!$self->knows_session($session));
 
     if (defined $self->{connections}->{$$}->{$session}) {
         debug "Disconnecting session $session for pid $$";
         $self->{connections}->{$$}->{$session}->disconnect();
-        undef $self->{connections}->{$$}->{$session};
+        delete $self->{connections}->{$$}->{$session};
     }
     return $self;
 }
 
 sub disconnect_all {
     my $self = shift;
+    $self->_inactivate_parent_connections;
     debug "Disconnecting all dbhs for process $$";
     foreach my $session ( keys %{$self->{connections}->{$$}} ) {
             $self->disconnect($session);
@@ -112,6 +126,7 @@ sub disconnect_all {
 
 sub DESTROY {
     my $self = shift;
+
     debug "DESTROY DbhPool -> calling finish_all_sths and disconnect_all";
     # either this DESTROY is called first, or SthPool's DESTROY is
     $self->{sthpool}->finish_all_sths() if (defined $self->{sthpool});
@@ -180,4 +195,3 @@ Doesn't affect any parent/child process's connections.
 =back
 
 =cut
-

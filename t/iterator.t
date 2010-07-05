@@ -18,7 +18,7 @@ BEGIN {
         plan skip_all => "test require missing module $m" if $@;
     }
 
-    plan tests => 49;
+    plan tests => 50;
 
     use_ok("DBIx::QueryByName");
 }
@@ -205,6 +205,10 @@ is_deeply(\@res, [ 1, 0, 2, 0 ], "in a while loop");
 # scalar iterator
 $it = $dbh->GetIdScalarIterator({ username => "bob" });
 throws_ok { $res = $it->next(1,2,3) } qr/next got unexpected arguments/, "scalar iterator accepts no arguments";
+
+# to_list
+$it = $dbh->GetIdScalarIterator({ username => "bob" });
+is_deeply([$it->to_list], [1, 2], "transform to list via to_list");
 
 # fix problem with sqlite that doesn't properly finish handles
 DBD::SQLite->DESTROY();
