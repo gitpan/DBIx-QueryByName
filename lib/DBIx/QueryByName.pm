@@ -17,7 +17,7 @@ use DBIx::QueryByName::Result::ScalarIterator;
 
 use accessors::chained qw(_query_pool _dbh_pool _sth_pool);
 
-our $VERSION = '0.17';
+our $VERSION = '0.18';
 
 our $AUTOLOAD;
 

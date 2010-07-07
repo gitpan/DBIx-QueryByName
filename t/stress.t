@@ -19,7 +19,6 @@ use warnings;
 use utf8;
 use Test::More;
 use Data::Dumper;
-use File::Slurp;
 use File::Temp qw(tempfile);
 use Time::HiRes qw(sleep);
 
@@ -36,7 +35,7 @@ BEGIN {
     $dbpass = $ENV{TEST_DBPASS} || '';
 
     # skip test if missing dependency
-    foreach my $m ('XML::Parser','XML::SimpleObject','DBI','DBD::Pg','Test::Exception','Log::Log4perl') {
+    foreach my $m ('XML::Parser','XML::SimpleObject','DBI','DBD::Pg','Test::Exception','Log::Log4perl','File::Slurp') {
         eval "use $m";
         plan skip_all => "test require missing module $m" if $@;
     }

@@ -1,3 +1,7 @@
+DBIx::QueryByName 0.18
+----------------------
+ - fixing tests
+
 DBIx::QueryByName 0.17
 ----------------------
  - fixed Log4perl 'Root logger not initialized' message
